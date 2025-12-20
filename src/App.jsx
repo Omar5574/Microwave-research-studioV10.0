@@ -1,9 +1,8 @@
-// ============================================================================
-// src/App.jsx - Final Version with Blue Active Tabs (Live Simulation + Deep Explanation)
-// ============================================================================
+// src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Data & Components
+// Data & Components imports
 import { devices } from './data/devices';
 import { Sidebar } from './components/layout/Sidebar';
 import { ControlPanel } from './components/layout/ControlPanel';
@@ -14,11 +13,9 @@ import { DeepExplanation } from './components/panels/DeepExplanation';
 import ExpertQuery from './components/features/ExpertQuery';
 
 export default function App() {
-  // === NEW TAB STATE ===
-  const [activeTab, setActiveTab] = useState("simulation");
-
-  // ========== UI STATES ==========
-  const [showExplanations, setShowExplanations] = useState(false);
+  // === TABS & UI STATE ===
+  const [activeTab, setActiveTab] = useState("simulation"); // 'simulation' or 'explanation'
+  const [showQuickInfo, setShowQuickInfo] = useState(false); // <--- RESTORED OLD FEATURE
 
   // ========== SIMULATION CORE STATES ==========
   const [activeId, setActiveId] = useState('klystron2');
@@ -73,7 +70,7 @@ export default function App() {
 
   // MathJax Loader
   useEffect(() => {
-    const needsMathJax = mathMode === 'latex' || activeTab === 'explanation' || showChat;
+    const needsMathJax = mathMode === 'latex' || activeTab === 'explanation' || showChat || showQuickInfo;
     if (needsMathJax && !window.MathJax) {
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
@@ -83,11 +80,12 @@ export default function App() {
     if (window.MathJax && window.MathJax.typesetPromise) {
       setTimeout(() => { try { window.MathJax.typesetPromise(); } catch (e) {} }, 100);
     }
-  }, [mathMode, activeDevice, inputs, activeTab, showChat]);
+  }, [mathMode, activeDevice, inputs, activeTab, showChat, showQuickInfo]);
 
   // ========== AI HANDLER ==========
   const handleGeminiQuery = async (query) => {
-    if (chatLoading || !query.trim()) return;
+    // ... (Your existing AI logic) ...
+     if (chatLoading || !query.trim()) return;
 
     let finalKey = userApiKey; 
     if (!finalKey) {
@@ -98,9 +96,7 @@ export default function App() {
     }
 
     if (!finalKey) {
-      const input = window.prompt(
-        "AI feature needs Gemini key.\nEnter your API key."
-      );
+      const input = window.prompt("AI feature needs Gemini key.\nEnter your API key.");
       if (!input) return;
       finalKey = input.trim();
       localStorage.setItem('USER_GEMINI_KEY', finalKey);
@@ -112,13 +108,13 @@ export default function App() {
 
     try {
       const genAI = new GoogleGenerativeAI(finalKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
       const prompt = `
         Device: ${activeDevice.name}
         Parameters: ${currentInputsFormatted}
         Question: ${query}
-        Answer in Arabic with some LaTeX if needed
+        Answer in Arabic with some LaTeX if needed. Keep it technical but clear for engineering students.
       `;
 
       const result = await model.generateContent(prompt);
@@ -128,7 +124,7 @@ export default function App() {
     } catch (error) {
       console.error("AI Error:", error);
       let msg = "Error connecting to server.";
-      if (error.message.includes("403") || error.message.includes("key")) {
+      if (error.message && (error.message.includes("403") || error.message.includes("key"))) {
         msg = "Invalid API key.";
         localStorage.removeItem('USER_GEMINI_KEY');
         setUserApiKey("");
@@ -141,9 +137,6 @@ export default function App() {
 
   if (!activeDevice) return <div className="text-white flex h-screen items-center justify-center">Loading...</div>;
 
-  // ==========================================================================  
-  // MAIN RENDER  
-  // ==========================================================================
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0b0f19] overflow-hidden font-sans">
 
@@ -155,24 +148,20 @@ export default function App() {
       />
 
       {/* HEADER */}
-      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-6 z-50">
+      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-6 z-50 shrink-0">
         
-        {/* LEFT SIDE */}
         <div className="flex items-center gap-4">
-
-          <h1 className="text-emerald-500 font-bold text-lg tracking-wider">
+          <h1 className="text-emerald-500 font-bold text-lg tracking-wider hidden md:block">
             Microwave Research Studio
           </h1>
 
-          {/* 🌟 NEW BLUE BUTTON TABS */}
           <div className="flex items-center gap-2 ml-4">
-
             <button
               onClick={() => setActiveTab("simulation")}
               className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
                 activeTab === "simulation"
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
+                  : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
               }`}
             >
               Live Simulation
@@ -182,43 +171,66 @@ export default function App() {
               onClick={() => setActiveTab("explanation")}
               className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
                 activeTab === "explanation"
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
+                  : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
               }`}
             >
               Deep Explanation
             </button>
+            
+            {/* RESTORED QUICK INFO BUTTON */}
+             <button
+              onClick={() => setShowQuickInfo(!showQuickInfo)}
+              className={`ml-2 px-3 py-1.5 text-xs font-bold uppercase rounded border transition-all ${
+                showQuickInfo 
+                  ? "bg-emerald-500 border-emerald-400 text-black" 
+                  : "bg-transparent border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500"
+              }`}
+            >
+              {showQuickInfo ? "Hide Info" : "Quick Info"}
+            </button>
+
           </div>
 
-          {/* CHAT */}
           <button 
             onClick={() => setShowChat(true)}
-            className="px-4 py-1.5 text-xs font-bold rounded bg-blue-600 text-white hover:bg-green-500"
+            className="px-4 py-1.5 text-xs font-bold rounded bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500 transition-all shadow-lg ml-4 flex items-center gap-2"
           >
-            Ask AI 🤖
+            <span>Ask AI</span> 
+            <span className="text-lg">🤖</span>
           </button>
         </div>
 
-        {/* LOGO */}
-        <img 
-          src="/kfs-logo.png" 
-          alt=""
-          className="h-12 opacity-90"
-          onError={(e) => {e.target.style.display='none'}}
-        />
+        <div className="flex items-center">
+            <img 
+            src="/kfs-logo.png" 
+            alt="University Logo"
+            className="h-12 opacity-90 hover:opacity-100 transition-opacity"
+            onError={(e) => {e.target.style.display='none'}}
+            />
+        </div>
       </header>
 
       {/* BODY */}
       <div className="flex flex-1 relative overflow-hidden">
         
-        {/* SIDEBAR */}
         <Sidebar devices={devices} activeId={activeId} setActiveId={setActiveId} />
 
-        {/* MAIN VIEW */}
         <main className="flex-1 flex flex-col relative bg-black overflow-hidden">
 
           <div className="flex-1 relative overflow-hidden bg-[#050505]">
             
+            {/* RESTORED QUICK INFO POPUP (LAYERED ON TOP) */}
+            {showQuickInfo && (
+              <div className="absolute top-4 left-4 z-40 w-80 bg-slate-900/95 backdrop-blur border border-slate-600 p-4 rounded shadow-2xl animate-in fade-in slide-in-from-left-4">
+                 <h3 className="text-emerald-400 font-bold mb-2">{activeDevice.name}</h3>
+                 <p className="text-slate-300 text-sm leading-relaxed mb-3">{activeDevice.desc}</p>
+                 <div className="text-xs text-slate-400 bg-black/40 p-2 rounded border border-slate-700 font-mono">
+                    {activeDevice.theory.plain}
+                 </div>
+              </div>
+            )}
+
             {activeTab === "simulation" ? (
               <>
                 <PhysicsCanvas 
@@ -229,30 +241,43 @@ export default function App() {
                   timeScale={timeScale}
                   particleDensity={particleDensity}
                 />
-
-                <div className="absolute bottom-4 right-4 flex gap-2 pointer-events-none">
-                  {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
-                  {showFFT && <FFTDisplay deviceId={activeId} inputs={safeInputs} />}
+                <div className="absolute bottom-4 right-4 flex flex-col gap-2 pointer-events-none z-10">
+                  <div className="pointer-events-auto">
+                    {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
+                  </div>
+                  <div className="pointer-events-auto">
+                    {showFFT && <FFTDisplay deviceId={activeId} inputs={safeInputs} />}
+                  </div>
                 </div>
               </>
             ) : (
-              <DeepExplanation device={activeDevice} />
+              <div className="w-full h-full overflow-y-auto bg-slate-900/50 p-6">
+                 <DeepExplanation device={activeDevice} mathMode={mathMode} />
+              </div>
             )}
 
           </div>
 
-          <ControlPanel 
-            device={activeDevice}
-            inputs={inputs}
-            setInputs={setInputs}
-            safeInputs={safeInputs}
-            mathMode={mathMode}
-            setMathMode={setMathMode}
-            showWaveform={showWaveform}
-            setShowWaveform={setShowWaveform}
-            showFFT={showFFT}
-            setShowFFT={setShowFFT}
-          />
+          {activeTab === "simulation" && (
+            <ControlPanel 
+                device={activeDevice}
+                inputs={inputs}
+                setInputs={setInputs}
+                safeInputs={safeInputs}
+                mathMode={mathMode}
+                setMathMode={setMathMode}
+                showWaveform={showWaveform}
+                setShowWaveform={setShowWaveform}
+                showFFT={showFFT}
+                setShowFFT={setShowFFT}
+                running={running}
+                setRunning={setRunning}
+                fidelity={fidelity}
+                setFidelity={setFidelity}
+                timeScale={timeScale}
+                setTimeScale={setTimeScale}
+            />
+          )}
 
         </main>
       </div>
