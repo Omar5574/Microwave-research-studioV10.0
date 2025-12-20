@@ -2,7 +2,8 @@
 // src/App.jsx - Final Integrated Version (UI + AI + Simulation)
 // ============================================================================
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+const { GoogleGenerativeAI } = await import("@google/generative-ai");
+
 
 // Data & Components
 import { devices } from './data/devices'; // تأكد أن هذا الملف موجود وبه البيانات
