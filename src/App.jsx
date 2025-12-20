@@ -13,9 +13,12 @@ import { DeepExplanation } from './components/panels/DeepExplanation';
 import ExpertQuery from './components/features/ExpertQuery';
 
 export default function App() {
+  // === RESPONSIVE STATE ===
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // للموبايل
+
   // === TABS & UI STATE ===
-  const [activeTab, setActiveTab] = useState("simulation"); // 'simulation' or 'explanation'
-  const [showQuickInfo, setShowQuickInfo] = useState(false); // زر الشرح السريع
+  const [activeTab, setActiveTab] = useState("simulation"); 
+  const [showQuickInfo, setShowQuickInfo] = useState(false); 
 
   // ========== SIMULATION CORE STATES ==========
   const [activeId, setActiveId] = useState('klystron2');
@@ -59,7 +62,13 @@ export default function App() {
   const particleDensity = useMemo(() => fidelity === 'high' ? 12.0 : fidelity === 'medium' ? 6.0 : 2.0, [fidelity]);
 
   // ========== EFFECTS ==========
+  
+  // إغلاق القائمة تلقائياً عند اختيار جهاز (على الموبايل)
   useEffect(() => {
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+
     if (!activeDevice) return;
     const defaults = {};
     activeDevice.params.forEach(p => defaults[p.id] = p.def);
@@ -147,64 +156,72 @@ export default function App() {
       />
 
       {/* HEADER */}
-      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-6 z-50 shrink-0">
+      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-4 md:px-6 z-50 shrink-0 relative">
         
-        <div className="flex items-center gap-4">
-          <h1 className="text-emerald-500 font-bold text-lg tracking-wider hidden md:block">
-            Microwave Research Studio
+        <div className="flex items-center gap-2 md:gap-4">
+          
+          {/* MOBILE MENU BUTTON (Using standard text symbols instead of lucide-react) */}
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="md:hidden text-slate-300 hover:text-emerald-400 p-1 text-2xl font-bold leading-none"
+          >
+            {isSidebarOpen ? "✕" : "☰"} 
+          </button>
+
+          <h1 className="text-emerald-500 font-bold text-sm md:text-lg tracking-wider truncate max-w-[120px] md:max-w-none">
+            Micro Studio
           </h1>
 
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-2 ml-2 md:ml-4">
             <button
               onClick={() => setActiveTab("simulation")}
-              className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
+              className={`px-2 md:px-4 py-1.5 text-[10px] md:text-sm font-bold rounded transition-all ${
                 activeTab === "simulation"
                   ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
                   : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
               }`}
             >
-              Live Simulation
+              Sim
             </button>
 
             <button
               onClick={() => setActiveTab("explanation")}
-              className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
+              className={`px-2 md:px-4 py-1.5 text-[10px] md:text-sm font-bold rounded transition-all ${
                 activeTab === "explanation"
                   ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
                   : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
               }`}
             >
-              Deep Explanation
+              Theory
             </button>
             
-            {/* Quick Info Button */}
              <button
               onClick={() => setShowQuickInfo(!showQuickInfo)}
-              className={`ml-2 px-3 py-1.5 text-xs font-bold uppercase rounded border transition-all ${
+              className={`hidden md:block ml-2 px-3 py-1.5 text-xs font-bold uppercase rounded border transition-all ${
                 showQuickInfo 
                   ? "bg-emerald-500 border-emerald-400 text-black" 
                   : "bg-transparent border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500"
               }`}
             >
-              {showQuickInfo ? "Hide Info" : "Quick Info"}
+              {showQuickInfo ? "Hide" : "Info"}
             </button>
 
           </div>
-
-          <button 
-            onClick={() => setShowChat(true)}
-            className="px-4 py-1.5 text-xs font-bold rounded bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500 transition-all shadow-lg ml-4 flex items-center gap-2"
-          >
-            <span>Ask AI</span> 
-            <span className="text-lg">🤖</span>
-          </button>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={() => setShowChat(true)}
+                className="px-2 md:px-4 py-1.5 text-[10px] md:text-xs font-bold rounded bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500 transition-all shadow-lg flex items-center gap-1"
+            >
+                <span className="hidden md:inline">Ask AI</span> 
+                <span className="text-base md:text-lg">🤖</span>
+            </button>
+
             <img 
             src="/kfs-logo.png" 
-            alt="University Logo"
-            className="h-12 opacity-90 hover:opacity-100 transition-opacity"
+            alt="Logo"
+            className="h-8 md:h-12 opacity-90 hover:opacity-100 transition-opacity hidden sm:block"
             onError={(e) => {e.target.style.display='none'}}
             />
         </div>
@@ -213,15 +230,30 @@ export default function App() {
       {/* BODY */}
       <div className="flex flex-1 relative overflow-hidden">
         
-        <Sidebar devices={devices} activeId={activeId} setActiveId={setActiveId} />
+        {/* SIDEBAR WRAPPER (Responsive) */}
+        <div className={`
+            absolute inset-y-0 left-0 z-40 w-64 bg-[#0b0f19] transform transition-transform duration-300 ease-in-out border-r border-slate-700
+            md:relative md:translate-x-0 
+            ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
+        `}>
+           <Sidebar devices={devices} activeId={activeId} setActiveId={setActiveId} />
+        </div>
 
-        <main className="flex-1 flex flex-col relative bg-black overflow-hidden">
+        {/* OVERLAY for Mobile (Closes sidebar when clicking outside) */}
+        {isSidebarOpen && (
+            <div 
+                className="fixed inset-0 z-30 bg-black/50 md:hidden"
+                onClick={() => setIsSidebarOpen(false)}
+            />
+        )}
+
+        <main className="flex-1 flex flex-col relative bg-black overflow-hidden w-full">
 
           <div className="flex-1 relative overflow-hidden bg-[#050505]">
             
-            {/* Quick Info Popup */}
+            {/* Quick Info Popup (Responsive) */}
             {showQuickInfo && (
-              <div className="absolute top-4 left-4 z-40 w-80 bg-slate-900/95 backdrop-blur border border-slate-600 p-4 rounded shadow-2xl animate-in fade-in slide-in-from-left-4">
+              <div className="absolute top-4 left-4 z-40 w-[90%] md:w-80 bg-slate-900/95 backdrop-blur border border-slate-600 p-4 rounded shadow-2xl animate-in fade-in slide-in-from-left-4">
                  <h3 className="text-emerald-400 font-bold mb-2">{activeDevice.name}</h3>
                  <p className="text-slate-300 text-sm leading-relaxed mb-3">{activeDevice.desc}</p>
                  <div className="text-xs text-slate-400 bg-black/40 p-2 rounded border border-slate-700 font-mono">
@@ -241,18 +273,19 @@ export default function App() {
                   particleDensity={particleDensity}
                 />
                 
-                {/* 2. Overlays (Waveform & FFT) - UPDATED: BIGGER & HORIZONTAL */}
-                <div className="absolute bottom-6 right-6 flex flex-row gap-4 items-end pointer-events-none z-10 scale-125 origin-bottom-right">
+                {/* 2. Overlays - Responsive Positioning */}
+                <div className="absolute bottom-20 md:bottom-6 right-2 md:right-6 flex flex-row gap-2 md:gap-4 items-end pointer-events-none z-10 scale-75 md:scale-125 origin-bottom-right">
                   <div className="pointer-events-auto">
                     {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
                   </div>
-                  <div className="pointer-events-auto">
+                  <div className="pointer-events-auto hidden sm:block"> 
+                     {/* FFT مخفي في الشاشات الصغيرة جداً لتوفير الأداء والمساحة */}
                     {showFFT && <FFTDisplay deviceId={activeId} inputs={safeInputs} />}
                   </div>
                 </div>
               </>
             ) : (
-              <div className="w-full h-full overflow-y-auto bg-slate-900/50 p-6">
+              <div className="w-full h-full overflow-y-auto bg-slate-900/50 p-4 md:p-6">
                  <DeepExplanation device={activeDevice} mathMode={mathMode} />
               </div>
             )}
@@ -260,24 +293,27 @@ export default function App() {
           </div>
 
           {activeTab === "simulation" && (
-            <ControlPanel 
-                device={activeDevice}
-                inputs={inputs}
-                setInputs={setInputs}
-                safeInputs={safeInputs}
-                mathMode={mathMode}
-                setMathMode={setMathMode}
-                showWaveform={showWaveform}
-                setShowWaveform={setShowWaveform}
-                showFFT={showFFT}
-                setShowFFT={setShowFFT}
-                running={running}
-                setRunning={setRunning}
-                fidelity={fidelity}
-                setFidelity={setFidelity}
-                timeScale={timeScale}
-                setTimeScale={setTimeScale}
-            />
+             <div className="shrink-0 overflow-x-auto">
+                {/* Control Panel Wrapper to handle mobile overflow */}
+                <ControlPanel 
+                    device={activeDevice}
+                    inputs={inputs}
+                    setInputs={setInputs}
+                    safeInputs={safeInputs}
+                    mathMode={mathMode}
+                    setMathMode={setMathMode}
+                    showWaveform={showWaveform}
+                    setShowWaveform={setShowWaveform}
+                    showFFT={showFFT}
+                    setShowFFT={setShowFFT}
+                    running={running}
+                    setRunning={setRunning}
+                    fidelity={fidelity}
+                    setFidelity={setFidelity}
+                    timeScale={timeScale}
+                    setTimeScale={setTimeScale}
+                />
+            </div>
           )}
 
         </main>
