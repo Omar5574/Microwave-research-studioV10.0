@@ -168,10 +168,10 @@ export function WaveformDisplay({ deviceId, inputs, running, timeScale }) {
        else {
            // TUBE DEVICES
            let currentFreq = inputs.f || 3;
-           if (deviceId === 'magnetron' && inputs.tune) {
-               const tuneFactor = 1 + (inputs.tune / 100) * 0.25; 
-               currentFreq *= tuneFactor;
-           }
+           if (deviceId === 'magnetron') {
+  const tuneFactor = 1 + (inputs.tune || 0) / 100;
+  currentFreq = (inputs.f || 3) * tuneFactor;
+}
            omega = 0.1 * currentFreq;
            
            if (deviceId === 'klystron2' || deviceId === 'klystronMulti') {
