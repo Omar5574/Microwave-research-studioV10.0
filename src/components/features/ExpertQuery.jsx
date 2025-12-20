@@ -10,6 +10,7 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
 
   useEffect(() => {
     historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // التحقق من وجود مكتبة MathJax لإعادة معالجة المعادلات الرياضية عند تحديث الشات
     if (window.MathJax && window.MathJax.typesetPromise) {
       setTimeout(() => {
           try {
@@ -29,6 +30,7 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
 
   if (!show) return null;
 
+  // دالة لمعالجة النصوص وعرض المعادلات الرياضية بشكل صحيح
   const renderText = (text) => {
     if (!text) return null;
     const safeText = typeof text === 'string' ? text : String(text);
@@ -36,9 +38,11 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
     return safeText.split('\n').map((line, index) => (
       <p key={index} className="mb-1">
         {line.split(/(\$\$[^$]*\$\$|\$[^$]*\$)/g).map((part, i) => {
+          // معالجة المعادلات البارزة (Block Math)
           if (part.startsWith('$$') && part.endsWith('$$')) {
             return <span key={i} className="block my-2 text-lg text-purple-300 font-mono overflow-x-auto">{`\\[ ${part.slice(2, -2).trim()} \\]`}</span>;
           }
+          // معالجة المعادلات الضمنية (Inline Math)
           if (part.startsWith('$') && part.endsWith('$')) {
             return <span key={i} className="text-emerald-300 font-mono">{`\\( ${part.slice(1, -1).trim()} \\)`}</span>;
           }
@@ -51,12 +55,15 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
   return (
     <div className="absolute inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="w-full max-w-2xl h-full max-h-[90vh] bg-slate-900 rounded-xl shadow-2xl border border-blue-700/50 flex flex-col overflow-hidden">
+        {/* Header */}
         <div className="p-4 border-b border-blue-700 flex justify-between items-center bg-blue-900/20">
           <h3 className="text-lg font-bold text-blue-400">µW-Expert: {deviceName}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
+
+        {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar text-sm bg-slate-950/50">
           {history.length === 0 && (
             <div className="bg-slate-800 p-4 rounded-lg border-l-4 border-blue-500 text-slate-300 shadow-md">
@@ -70,6 +77,7 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
               <p className="text-xs mt-3 text-slate-500 border-t border-slate-700 pt-2 font-mono">الحالة الحالية: {currentInputs}</p>
             </div>
           )}
+          
           {history.map((msg, index) => (
             <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] p-3 rounded-xl shadow-md leading-relaxed ${
@@ -83,6 +91,8 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
           ))}
           <div ref={historyEndRef} />
         </div>
+
+        {/* Input Area */}
         <form onSubmit={handleSubmit} className="p-4 border-t border-slate-700 bg-slate-800 flex items-center gap-3">
           <input 
             type="text" 
@@ -108,6 +118,9 @@ function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, cur
     </div>
   );
 }
+
+// هذا هو السطر المفقود الذي كان يسبب الخطأ
+export default ExpertQuery;
 
 // ========== USAGE EXAMPLE ==========
 /*
