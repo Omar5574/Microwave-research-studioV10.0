@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Data & Components imports
 import { devices } from './data/devices';
@@ -15,7 +15,7 @@ import ExpertQuery from './components/features/ExpertQuery';
 export default function App() {
   // === TABS & UI STATE ===
   const [activeTab, setActiveTab] = useState("simulation"); // 'simulation' or 'explanation'
-  const [showQuickInfo, setShowQuickInfo] = useState(false); // <--- RESTORED OLD FEATURE
+  const [showQuickInfo, setShowQuickInfo] = useState(false); // زر الشرح السريع
 
   // ========== SIMULATION CORE STATES ==========
   const [activeId, setActiveId] = useState('klystron2');
@@ -84,8 +84,7 @@ export default function App() {
 
   // ========== AI HANDLER ==========
   const handleGeminiQuery = async (query) => {
-    // ... (Your existing AI logic) ...
-     if (chatLoading || !query.trim()) return;
+    if (chatLoading || !query.trim()) return;
 
     let finalKey = userApiKey; 
     if (!finalKey) {
@@ -178,7 +177,7 @@ export default function App() {
               Deep Explanation
             </button>
             
-            {/* RESTORED QUICK INFO BUTTON */}
+            {/* Quick Info Button */}
              <button
               onClick={() => setShowQuickInfo(!showQuickInfo)}
               className={`ml-2 px-3 py-1.5 text-xs font-bold uppercase rounded border transition-all ${
@@ -220,7 +219,7 @@ export default function App() {
 
           <div className="flex-1 relative overflow-hidden bg-[#050505]">
             
-            {/* RESTORED QUICK INFO POPUP (LAYERED ON TOP) */}
+            {/* Quick Info Popup */}
             {showQuickInfo && (
               <div className="absolute top-4 left-4 z-40 w-80 bg-slate-900/95 backdrop-blur border border-slate-600 p-4 rounded shadow-2xl animate-in fade-in slide-in-from-left-4">
                  <h3 className="text-emerald-400 font-bold mb-2">{activeDevice.name}</h3>
@@ -241,7 +240,9 @@ export default function App() {
                   timeScale={timeScale}
                   particleDensity={particleDensity}
                 />
-                <div className="absolute bottom-4 right-4 flex flex-col gap-2 pointer-events-none z-10">
+                
+                {/* 2. Overlays (Waveform & FFT) - UPDATED: BIGGER & HORIZONTAL */}
+                <div className="absolute bottom-6 right-6 flex flex-row gap-4 items-end pointer-events-none z-10 scale-125 origin-bottom-right">
                   <div className="pointer-events-auto">
                     {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
                   </div>
