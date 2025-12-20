@@ -1,4 +1,4 @@
-# Microwave Research Studio (v9.4) 📡
+# Micro Studio (v9.4) 📡
 
 ![Version](https://img.shields.io/badge/version-9.4.0-blue.svg?style=for-the-badge)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
