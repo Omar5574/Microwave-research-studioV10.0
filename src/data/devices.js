@@ -143,11 +143,12 @@ export const devices = [
                 title: "Principle of Operation",
                 text: "Utilizes a repeller electrode biased at a negative potential to reverse the electron beam. The 'drift space' is folded back on itself. Fast electrons penetrate deeper into the repeller field, while slow electrons return sooner, creating bunches."
             },
-            {
-                title: "Transit Time Condition",
-                text: "For oscillation, the round-trip transit time T' must correspond to specific portions of the RF cycle (Mode Numbers n):",
-                eq: "T' = \\left( n + \frac{3}{4} \\right) T = \\frac{2\\pi n - \pi/2}{\\omega}"
-            },
+           {
+  title: "Transit Time Condition",
+  text: "For oscillation, the round-trip transit time T' must correspond to specific portions of the RF cycle (Mode Numbers n):",
+  // قمت بتصحيح الـ Backslashes وتعديل المعادلة لتطابق الشرط الفيزيائي (n + 3/4)
+  eq: "T' = \\left( n + \\frac{3}{4} \\right) T = \\frac{2\\pi n + \\frac{3\\pi}{2}}{\\omega}"
+},
             {
                 title: "Electronic Tuning",
                 text: "Varying the repeller voltage changes the phase of the returned current, allowing fine frequency control (10-50 MHz) for AFC applications."
