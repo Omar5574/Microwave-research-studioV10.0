@@ -1,89 +1,80 @@
-import React, { useState } from 'react';
-import ExpertQuery from './components/features/ExpertQuery'; // تأكد أن المسار صحيح لملفك
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// المسار: src/components/features/ExpertQuery.jsx
+import React, { useEffect, useRef, useState } from 'react';
 
-// 1. تعريف الموديل باستخدام المفتاح الذي وضعناه في ملف .env
-// إذا كنت تستخدم Create React App استبدل import.meta.env بـ process.env
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY; 
-const genAI = new GoogleGenerativeAI(API_KEY);
+// هذا الملف مسؤول فقط عن العرض (UI) ولا يتصل بـ Google مباشرة
+function ExpertQuery({ show, onClose, onQuery, loading, deviceName, history, currentInputs }) {
+  const [inputQuery, setInputQuery] = useState('');
+  const historyEndRef = useRef(null);
 
-function SimulationPage() {
-  // حالة للتحكم في ظهور الشات
-  const [showChat, setShowChat] = useState(false);
-  // حالة لتخزين المحادثة (سؤالك وإجابة الذكاء الاصطناعي)
-  const [chatHistory, setChatHistory] = useState([]);
-  // حالة التحميل (لإظهار كلمة "جاري التحليل...")
-  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history, show]);
 
-  // هذه هي الدالة التي ستنفذ عندما تضغط "إرسال"
-  const handleQuery = async (userQuestion) => {
-    // لا ترسل إذا كان السؤال فارغاً أو لا يوجد مفتاح
-    if (!userQuestion || !API_KEY) {
-      alert("تأكد من وجود مفتاح API في ملف .env");
-      return;
-    }
-
-    setLoading(true);
-
-    // 1. أضف سؤالك فوراً للشاشة
-    const newHistory = [...chatHistory, { role: 'user', text: userQuestion }];
-    setChatHistory(newHistory);
-
-    try {
-      // 2. اختيار الموديل (gemini-pro هو الأفضل للنصوص حالياً)
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-      
-      // 3. (اختياري) تخصيص شخصية الموديل ليكون مهندس اتصالات
-      const contextPrompt = `
-        أنت مساعد ذكي متخصص في هندسة الموجات الدقيقة (Microwave Engineering).
-        الطالب يسأل عن جهاز: Gunn Diode.
-        اشرح بأسلوب علمي هندسي دقيق ومختصر.
-        استخدم المعادلات الرياضية بصيغة LaTeX (بين علامات $$) إذا لزم الأمر.
-        السؤال هو: ${userQuestion}
-      `;
-
-      // 4. إرسال السؤال لجوجل
-      const result = await model.generateContent(contextPrompt);
-      const response = await result.response;
-      const text = response.text();
-
-      // 5. أضف إجابة الموديل للشاشة
-      setChatHistory(prev => [...prev, { role: 'model', text: text }]);
-
-    } catch (error) {
-      console.error("Error:", error);
-      setChatHistory(prev => [...prev, { role: 'model', text: "حدث خطأ في الاتصال، حاول مرة أخرى." }]);
-    } finally {
-      setLoading(false);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (inputQuery.trim() && !loading) {
+      onQuery(inputQuery);
+      setInputQuery('');
     }
   };
 
+  if (!show) return null;
+
   return (
-    <div style={{ height: '100vh', background: '#0f172a', position: 'relative' }}>
-      
-      {/* هنا باقي كود المحاكاة والرسومات الخاصة بك */}
-      <h1 className="text-white text-center pt-10">Gunn Diode Simulation</h1>
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl h-[80vh] bg-slate-900 rounded-xl border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+          <h3 className="text-blue-400 font-bold flex items-center gap-2">
+            🤖 مساعد {deviceName}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+        </div>
 
-      {/* زر لفتح الشات */}
-      <button 
-        onClick={() => setShowChat(true)}
-        className="fixed bottom-5 right-5 bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-500 transition"
-      >
-        اسأل الخبير 🤖
-      </button>
+        {/* Chat Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900/50">
+          {history.length === 0 && (
+            <div className="text-center text-slate-500 mt-10">
+              <p>مرحباً يا عمر! أنا جاهز للإجابة عن أسئلتك بخصوص {deviceName}.</p>
+            </div>
+          )}
+          
+          {history.map((msg, index) => (
+            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] p-3 rounded-xl ${
+                msg.role === 'user' 
+                  ? 'bg-blue-600 text-white rounded-br-none' 
+                  : 'bg-slate-700 text-slate-200 rounded-tl-none'
+              }`}>
+                {/* هنا نعرض النص ونحول الرموز الرياضية إن وجدت */}
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.text}</p>
+              </div>
+            </div>
+          ))}
+          <div ref={historyEndRef} />
+        </div>
 
-      {/* استدعاء المكون الذي صممته أنت وتمرير البيانات له */}
-      <ExpertQuery
-        show={showChat}
-        onClose={() => setShowChat(false)}
-        onQuery={handleQuery}      // تمرير دالة الربط
-        loading={loading}          // تمرير حالة التحميل
-        deviceName="Gunn Diode"
-        history={chatHistory}      // تمرير سجل المحادثة
-        currentInputs="V=12V"      // (اختياري) لعرض القيم الحالية
-      />
+        {/* Input Area */}
+        <form onSubmit={handleSubmit} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2">
+          <input 
+            type="text" 
+            value={inputQuery}
+            onChange={(e) => setInputQuery(e.target.value)}
+            placeholder="اكتب سؤالك هنا..." 
+            className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 outline-none"
+            disabled={loading}
+          />
+          <button 
+            type="submit" 
+            disabled={loading || !inputQuery.trim()}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 transition-colors"
+          >
+            {loading ? '...' : 'إرسال'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
 
-export default SimulationPage;
+export default ExpertQuery;
