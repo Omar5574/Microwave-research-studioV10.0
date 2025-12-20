@@ -240,9 +240,7 @@ export const devices = [
           'Hull Cutoff': { value: ((1.759e11 / 8) * Math.pow((p.Bo || 336) * 1e-3, 2) * (Math.pow((p.rb || 30) * 1e-3, 2) - Math.pow((p.ra || 10) * 1e-3, 2)) / 1000).toFixed(2), unit: 'kV', latex: 'V_H = \\frac{eB^2}{8m}(r_b^2-r_a^2)' },
           'Hartree Voltage': { value: (((1.759e11 / 8) * Math.pow((p.Bo || 336) * 1e-3, 2) * (Math.pow((p.rb || 30) * 1e-3, 2) - Math.pow((p.ra || 10) * 1e-3, 2)) / 1000) * (1 - Math.pow((p.ra || 10) / (p.rb || 30), 2 / (p.N || 8)))).toFixed(2), unit: 'kV', latex: 'V_a = V_H[1-(r_a/r_b)^{2/N}]' },
           'Drift Velocity': { value: (((p.Vo || 26) * 1000) / ((p.Bo || 336) * 1e-3 * (p.rb || 30) * 1e-3)).toFixed(0), unit: 'm/s', latex: 'v_d = E/B = V_0/(Br_b)' },
-          'Frequency': { value: (((p.Vo || 26) * 1000) / ((p.Bo || 336) * 1e-3 * Math.PI * Math.pow((p.rb || 30) * 1e-3, 2)) * 1e-9).toFixed(2), unit: 'GHz', latex: 'f = v_d/(\\pi r_b)' }
-        })
-      },
+          'Frequency': { value: ((((p.Vo || 26) * 1000) /((p.Bo || 336) * 1e-3 * Math.PI * Math.pow((p.rb || 30) * 1e-3, 2))) * 1e-9 * (1 + (p.tune || 0) / 100)).toFixed(2),unit: 'GHz',latex: 'f = f_0(1 + T/100)'}})},
       // === O-TYPE BWO ===
     { 
       id: 'obwo', 
