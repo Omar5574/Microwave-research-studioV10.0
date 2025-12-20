@@ -1,12 +1,11 @@
 // ============================================================================
-// src/App.jsx - Final Integrated Version (UI + AI + Simulation)
+// src/App.jsx - Final Version with Blue Active Tabs (Live Simulation + Deep Explanation)
 // ============================================================================
 import React, { useState, useEffect, useMemo } from 'react';
-
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Data & Components
-import { devices } from './data/devices'; // تأكد أن هذا الملف موجود وبه البيانات
+import { devices } from './data/devices';
 import { Sidebar } from './components/layout/Sidebar';
 import { ControlPanel } from './components/layout/ControlPanel';
 import { PhysicsCanvas } from './components/simulation/PhysicsCanvas';
@@ -16,12 +15,14 @@ import { DeepExplanation } from './components/panels/DeepExplanation';
 import ExpertQuery from './components/features/ExpertQuery';
 
 export default function App() {
-  // ========== UI STATES (New Header & Panel) ==========
+  // === NEW TAB STATE ===
+  const [activeTab, setActiveTab] = useState("simulation");
+
+  // ========== UI STATES ==========
   const [showExplanations, setShowExplanations] = useState(false);
 
   // ========== SIMULATION CORE STATES ==========
   const [activeId, setActiveId] = useState('klystron2');
-  const [activeTab, setActiveTab] = useState('simulation');
   const [running, setRunning] = useState(true);
   const [inputs, setInputs] = useState({});
   const [fidelity, setFidelity] = useState('medium');
@@ -29,28 +30,19 @@ export default function App() {
   const [mathMode, setMathMode] = useState('plain');
   const [showWaveform, setShowWaveform] = useState(true);
   const [showFFT, setShowFFT] = useState(true);
-  
+
   // ========== AI CHAT STATES ==========
   const [showChat, setShowChat] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
 
-  // ========== KEY MANAGEMENT (The Logic) ==========
+  // ========== KEY MANAGEMENT ==========
   const [userApiKey, setUserApiKey] = useState(() => {
     return localStorage.getItem('USER_GEMINI_KEY') || "";
   });
 
   // ========== HELPERS & DERIVED STATE ==========
   const activeDevice = useMemo(() => devices.find(d => d.id === activeId), [activeId]);
-
-  // توليد قائمة الشرح تلقائياً من بيانات الأجهزة الموجودة
-  const deviceExplanations = useMemo(() => {
-    const explanations = {};
-    devices.forEach(d => {
-      explanations[d.name] = d.desc;
-    });
-    return explanations;
-  }, []);
 
   const safeInputs = useMemo(() => {
     if (!activeDevice) return {};
@@ -71,7 +63,6 @@ export default function App() {
   const particleDensity = useMemo(() => fidelity === 'high' ? 12.0 : fidelity === 'medium' ? 6.0 : 2.0, [fidelity]);
 
   // ========== EFFECTS ==========
-  // Reset inputs when device changes
   useEffect(() => {
     if (!activeDevice) return;
     const defaults = {};
@@ -109,8 +100,7 @@ export default function App() {
 
     if (!finalKey) {
       const input = window.prompt(
-        "💡 ميزة الذكاء الاصطناعي تتطلب مفتاح Gemini API.\n\n" +
-        "يرجى إدخال المفتاح الخاص بك (مجاني من Google AI Studio)."
+        "AI feature needs Gemini key.\nEnter your API key."
       );
       if (!input) return;
       finalKey = input.trim();
@@ -126,11 +116,10 @@ export default function App() {
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
-        Context: Microwave Engineering Student Project.
-        Device: ${activeDevice.name}.
-        Parameters: ${currentInputsFormatted}.
+        Device: ${activeDevice.name}
+        Parameters: ${currentInputsFormatted}
         Question: ${query}
-        Answer in Arabic. Be concise. Use LaTeX for math ($...$).
+        Answer in Arabic with some LaTeX if needed
       `;
 
       const result = await model.generateContent(prompt);
@@ -139,9 +128,9 @@ export default function App() {
       setChatHistory(prev => [...prev, { role: 'model', text: text }]);
     } catch (error) {
       console.error("AI Error:", error);
-      let msg = "حدث خطأ في الاتصال.";
+      let msg = "Error connecting to server.";
       if (error.message.includes("403") || error.message.includes("key")) {
-        msg = "المفتاح غير صحيح. حاول مرة أخرى.";
+        msg = "Invalid API key.";
         localStorage.removeItem('USER_GEMINI_KEY');
         setUserApiKey("");
       }
@@ -153,136 +142,120 @@ export default function App() {
 
   if (!activeDevice) return <div className="text-white flex h-screen items-center justify-center">Loading...</div>;
 
-  // ==========================================================================
-  // MAIN RENDER (Using your Custom Layout)
+  // ==========================================================================  
+  // MAIN RENDER  
   // ==========================================================================
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0b0f19] overflow-hidden font-sans">
-      
-      {/* 1. AI Chat Overlay (Always available) */}
+
+      {/* AI CHAT OVERLAY */}
       <ExpertQuery 
         show={showChat} onClose={() => setShowChat(false)}
         onQuery={handleGeminiQuery} loading={chatLoading}
         deviceName={activeDevice.name} history={chatHistory} currentInputs={currentInputsFormatted}
       />
 
-      {/* 2. THE HEADER (Your Custom Design) */}
-      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-6 z-50 shadow-md shrink-0 backdrop-blur-md">
+      {/* HEADER */}
+      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-6 z-50">
         
-        {/* Left Side: Title + Toggle Button */}
-        <div className="flex items-center gap-6">
+        {/* LEFT SIDE */}
+        <div className="flex items-center gap-4">
+
           <h1 className="text-emerald-500 font-bold text-lg tracking-wider">
             Microwave Research Studio
           </h1>
-          
-          <button 
-            onClick={() => setShowExplanations(!showExplanations)} 
-            className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wide rounded transition-all duration-200 border
-              ${showExplanations 
-                ? "bg-emerald-500 border-emerald-400 text-black hover:bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.4)]" 
-                : "bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white hover:border-slate-500"}`}
-          > 
-            {showExplanations ? "Hide Explanations" : "Show Device Explanations"}
-          </button>
 
-          {/* زر الشات أضفته هنا في الهيدر أيضاً لسهولة الوصول */}
+          {/* 🌟 NEW BLUE BUTTON TABS */}
+          <div className="flex items-center gap-2 ml-4">
+
+            <button
+              onClick={() => setActiveTab("simulation")}
+              className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
+                activeTab === "simulation"
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              }`}
+            >
+              Live Simulation
+            </button>
+
+            <button
+              onClick={() => setActiveTab("explanation")}
+              className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
+                activeTab === "explanation"
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              }`}
+            >
+              Deep Explanation
+            </button>
+          </div>
+
+          {/* CHAT */}
           <button 
             onClick={() => setShowChat(true)}
-            className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+            className="px-4 py-1.5 text-xs font-bold rounded bg-blue-600 text-white hover:bg-green-500"
           >
             Ask AI 🤖
           </button>
         </div>
 
-        {/* Right Side: University Logo */}
-        <div className="flex items-center opacity-90 hover:opacity-100 transition-opacity">
-          {/* تأكد من وضع صورة اللوجو في مجلد public باسم kfs-logo.png */}
-          <img 
-            src="/kfs-logo.png" 
-            alt="Kafr El Sheikh University"
-            className="h-12 w-auto drop-shadow-md"
-            onError={(e) => {e.target.style.display='none'}} // إخفاء الصورة لو مش موجودة
-          />
-        </div>
+        {/* LOGO */}
+        <img 
+          src="/kfs-logo.png" 
+          alt=""
+          className="h-12 opacity-90"
+          onError={(e) => {e.target.style.display='none'}}
+        />
       </header>
 
-      {/* 3. MAIN WORKSPACE */}
-      <div className="flex-1 relative w-full h-full flex overflow-hidden">
+      {/* BODY */}
+      <div className="flex flex-1 relative overflow-hidden">
         
-        {/* Layer 0: التطبيق الفعلي (Sidebar + Canvas + Controls) */}
-        {/* هنا نضع مكونات المحاكاة بدلاً من MicrowaveResearchStudioV9 */}
-        <div className="flex flex-1 w-full h-full">
+        {/* SIDEBAR */}
+        <Sidebar devices={devices} activeId={activeId} setActiveId={setActiveId} />
+
+        {/* MAIN VIEW */}
+        <main className="flex-1 flex flex-col relative bg-black overflow-hidden">
+
+          <div className="flex-1 relative overflow-hidden bg-[#050505]">
             
-            {/* Sidebar */}
-            <Sidebar devices={devices} activeId={activeId} setActiveId={setActiveId} />
-
-            {/* Main Content (Canvas & Panels) */}
-            <main className="flex-1 flex flex-col relative bg-black overflow-hidden">
-                <div className="flex-1 relative overflow-hidden bg-[#050505]">
-                    {activeTab === 'simulation' ? (
-                        <>
-                            <PhysicsCanvas deviceId={activeId} running={running} inputs={safeInputs} fidelity={fidelity} timeScale={timeScale} particleDensity={particleDensity} />
-                            
-                            {/* Info Overlay inside Canvas */}
-                            <div className="absolute top-4 left-4 max-w-md pointer-events-none z-10">
-                                <div className="bg-gradient-to-br from-slate-900/90 to-slate-950/90 backdrop-blur-md border border-slate-700/50 rounded-xl p-4 shadow-2xl">
-                                    <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">{activeDevice.name}</h2>
-                                    <p className="text-sm text-slate-300 leading-relaxed">{activeDevice.desc}</p>
-                                </div>
-                            </div>
-
-                            {/* Graphs */}
-                            {(showWaveform || showFFT) && (
-                                <div className="absolute bottom-4 right-4 flex gap-2 pointer-events-none z-10 flex-col sm:flex-row">
-                                    {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
-                                    {showFFT && <FFTDisplay deviceId={activeId} inputs={safeInputs} />}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <DeepExplanation device={activeDevice} />
-                    )}
-                </div>
-
-                {/* Bottom Control Panel */}
-                <ControlPanel 
-                    device={activeDevice} inputs={inputs} setInputs={setInputs} safeInputs={safeInputs}
-                    mathMode={mathMode} setMathMode={setMathMode} showWaveform={showWaveform} setShowWaveform={setShowWaveform} showFFT={showFFT} setShowFFT={setShowFFT}
+            {activeTab === "simulation" ? (
+              <>
+                <PhysicsCanvas 
+                  deviceId={activeId}
+                  running={running}
+                  inputs={safeInputs}
+                  fidelity={fidelity}
+                  timeScale={timeScale}
+                  particleDensity={particleDensity}
                 />
-            </main>
-        </div>
 
-        {/* Layer 50: قائمة الشرح المنبثقة (The Overlay) */}
-        {showExplanations && (
-          <div 
-            className="absolute top-4 left-4 z-50 w-[350px] max-h-[calc(100vh-4rem)] 
-                       p-4 rounded-lg border border-slate-600/50 shadow-2xl
-                       bg-slate-900/95 backdrop-blur-xl text-slate-200 overflow-y-auto custom-scrollbar
-                       animate-in fade-in slide-in-from-left-4 duration-300"
-          > 
-            <h3 className="text-emerald-400 font-bold text-sm mb-3 border-b border-slate-700 pb-2">
-              Device Explanations
-            </h3>
+                <div className="absolute bottom-4 right-4 flex gap-2 pointer-events-none">
+                  {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
+                  {showFFT && <FFTDisplay deviceId={activeId} inputs={safeInputs} />}
+                </div>
+              </>
+            ) : (
+              <DeepExplanation device={activeDevice} />
+            )}
 
-            <div className="space-y-3">
-              {Object.entries(deviceExplanations).map(([k,v]) => ( 
-                <div key={k} className="group hover:bg-white/5 p-2 rounded transition-colors cursor-pointer" onClick={() => {
-                    // (اختياري) عند الضغط على اسم الجهاز ينقلك إليه
-                    const dev = devices.find(d => d.name === k);
-                    if(dev) setActiveId(dev.id);
-                }}> 
-                  <strong className="text-yellow-400 block mb-1 text-sm font-semibold">
-                    {k}
-                  </strong> 
-                  <p className="text-slate-300 text-xs leading-relaxed opacity-90">
-                    {v}
-                  </p> 
-                </div> 
-              ))} 
-            </div>
           </div>
-        )}
 
+          <ControlPanel 
+            device={activeDevice}
+            inputs={inputs}
+            setInputs={setInputs}
+            safeInputs={safeInputs}
+            mathMode={mathMode}
+            setMathMode={setMathMode}
+            showWaveform={showWaveform}
+            setShowWaveform={setShowWaveform}
+            showFFT={showFFT}
+            setShowFFT={setShowFFT}
+          />
+
+        </main>
       </div>
     </div>
   );
