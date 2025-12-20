@@ -204,10 +204,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           ctx.font = '10px monospace';
           ctx.fillText('COLLECTOR', collectorX + 5, cy);
 
-          ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
-          ctx.font = '12px monospace';
-          ctx.fillText(`β (Coupling): ${beta.toFixed(3)}`, 20, cy + 100);
-          ctx.fillText(`X (Bunching): ${X_real.toFixed(3)}`, 20, cy + 115);
+          
           ctx.fillStyle = X_real > 1.8 && X_real < 1.9 ? '#4ade80' : '#94a3b8';
           ctx.fillText(X_real > 1.8 && X_real < 1.9 ? "OPTIMAL BUNCHING!" : "", 20, cy + 130);
 
@@ -332,8 +329,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           ctx.fillStyle = '#334155'; ctx.fillRect(collectorX, cy - 40, 40, 80);
           ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('COLLECTOR', collectorX, cy);
           
-          ctx.fillStyle = 'rgba(0, 255, 0, 0.7)'; ctx.font = '12px monospace';
-          ctx.fillText(`L_opt: ${L_opt_cm.toFixed(2)} cm`, 20, cy + 100);
+         
 
           particlesRef.current.forEach(p => {
              let color = '#60a5fa'; 
