@@ -2,7 +2,6 @@
 // src/App.jsx - Final Version with Blue Active Tabs (Live Simulation + Deep Explanation)
 // ============================================================================
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Data & Components
 import { devices } from './data/devices';
