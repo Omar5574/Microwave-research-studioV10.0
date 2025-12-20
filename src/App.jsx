@@ -20,7 +20,7 @@ import { FFTDisplay } from './components/simulation/FFTDisplay';
 import { DeepExplanation } from './components/panels/DeepExplanation';
 
 // Feature components
-import { ExpertQuery } from './components/features/ExpertQuery';
+import ExpertQuery from './components/features/ExpertQuery';
 
 export default function App() {
   // ========== CORE STATE ==========
