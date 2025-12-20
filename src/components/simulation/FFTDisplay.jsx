@@ -1,3 +1,6 @@
+// src/components/simulation/FFTDisplay.jsx
+import React, { useEffect, useRef } from 'react';
+
 export function FFTDisplay({ deviceId, inputs }) {
   const canvasRef = useRef(null);
 
@@ -6,85 +9,64 @@ export function FFTDisplay({ deviceId, inputs }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
+    // إعداد أبعاد الـ Canvas
     canvas.width = 250;
     canvas.height = 150;
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-    ctx.fillRect(0, 0, 250, 150);
+    // خلفية سوداء (أو شفافة حسب التصميم)
+    ctx.fillStyle = '#0f172a'; // لون slate-900 تقريباً
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    let effectiveFreq = inputs.f || 3;
-    
-    if (deviceId === 'gunn') {
-      const L = inputs.L || 10;
-      const vd = inputs.vd || 1e7;
-      effectiveFreq = (vd / (L * 1e-4)) / 1e9;
-    }
-    else if (deviceId === 'tunnel') {
-      effectiveFreq = (inputs.V || 150) / 100 + 1;
-    }
-    else if (deviceId === 'impatt') {
-      effectiveFreq = (inputs.Vd || 90) / 50;
-    }
-    else if (deviceId === 'trapatt') {
-      effectiveFreq = 1.0 + Math.sin((inputs.V || 100) / 50);
-    }
-    else if (deviceId === 'magnetron' && inputs.tune) {
-         const tuneFactor = 1 + (inputs.tune / 100) * 0.25;
-         effectiveFreq *= tuneFactor;
-    }
-
-    const numBars = 40;
-    const barWidth = 250 / numBars;
-
-    // Grid
-    ctx.strokeStyle = 'rgba(100, 116, 139, 0.2)'; 
+    // رسم شبكة (Grid) بسيطة
+    ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 5; i++) { 
-      ctx.beginPath(); 
-      ctx.moveTo(0, i * 30); 
-      ctx.lineTo(250, i * 30); 
-      ctx.stroke(); 
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += 25) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
     }
-
-    // Spectrum Bars
-    for (let i = 0; i < numBars; i++) {
-      const f_bin = i * 0.5; 
-      let magnitude = 0;
-      
-      if (Math.abs(f_bin - effectiveFreq) < 0.6) magnitude = 1.0;
-      
-      if (['klystron2', 'klystronMulti'].includes(deviceId) && Math.abs(f_bin - effectiveFreq * 3) < 0.5) {
-        magnitude = 0.3;
-      }
-      
-      if (deviceId === 'magnetron') {
-          if(Math.abs(f_bin - effectiveFreq * 2) < 0.5) magnitude = 0.2;
-          magnitude += Math.random() * 0.05; 
-      }
-      
-      magnitude += Math.random() * 0.02; 
-
-      const barHeight = magnitude * 120;
-      const gradient = ctx.createLinearGradient(0, 150 - barHeight, 0, 150);
-      gradient.addColorStop(0, '#fbbf24');
-      gradient.addColorStop(1, '#f59e0b');
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(i * barWidth, 150 - barHeight, barWidth - 1, barHeight);
+    for (let y = 0; y < canvas.height; y += 25) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
     }
+    ctx.stroke();
 
+    // محاكاة رسم بيانات FFT (تمثيل ترددي وهمي)
+    ctx.beginPath();
+    ctx.strokeStyle = '#ef4444'; // لون أحمر
+    ctx.lineWidth = 2;
+    
+    // إنشاء موجات عشوائية لمحاكاة الطيف الترددي بناءً على المدخلات
+    const frequencyFactor = inputs?.f ? parseFloat(inputs.f) : 1;
+    
+    for (let i = 0; i < canvas.width; i++) {
+        // معادلة بسيطة لرسم "أعمدة" الطيف
+        const amplitude = Math.sin(i * 0.1 * frequencyFactor) * Math.random() * 50;
+        // رسم خط من الأسفل إلى الارتفاع المحسوب
+        // هنا سنرسم مجرد خط متصل يمثل الغلاف (Envelope) للتبسيط
+        const y = canvas.height - Math.abs(amplitude) - 10; 
+        
+        if (i === 0) ctx.moveTo(i, y);
+        else ctx.lineTo(i, y);
+    }
+    ctx.stroke();
+
+    // إضافة نص توضيحي
     ctx.fillStyle = '#94a3b8';
     ctx.font = '10px monospace';
-    ctx.fillText('SPECTRUM (FFT)', 5, 12);
-    
-    ctx.textAlign = 'right';
-    ctx.fillText(`${effectiveFreq.toFixed(2)} GHz`, 245, 12);
+    ctx.fillText('Frequency (GHz)', 10, canvas.height - 5);
 
-  }, [deviceId, inputs]);
+  }, [inputs]); // إعادة الرسم عند تغير المدخلات
 
   return (
-    <div className="bg-gradient-to-br from-slate-900/90 to-slate-950/90 backdrop-blur-md border border-slate-700/50 rounded-lg p-2 shadow-2xl">
-      <canvas ref={canvasRef} className="rounded w-full h-full" />
+    <div className="bg-slate-900 border border-slate-700 rounded-lg p-2 shadow-inner">
+      <h4 className="text-xs text-slate-400 mb-2 font-mono text-center">FFT Spectrum Analysis</h4>
+      <canvas 
+        ref={canvasRef} 
+        className="w-full h-full rounded bg-black/50"
+      />
     </div>
   );
 }
+
+export default FFTDisplay;
