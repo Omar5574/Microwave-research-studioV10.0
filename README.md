@@ -4,7 +4,7 @@
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![Vibe Coding](https://img.shields.io/badge/Philosophy-Vibe_Coding-purple?style=for-the-badge)
-![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+
 
 **Microwave Research Studio** is a state-of-the-art, interactive simulation engine designed to visualize the invisible physics of microwave engineering devices.
 
