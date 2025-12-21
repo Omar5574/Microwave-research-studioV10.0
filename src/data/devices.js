@@ -1,5 +1,16 @@
 // src/data/devices.js
+
+// ثوابت فيزيائية عامة
+const q = 1.6e-19;
+const epsilon0 = 8.85e-14; // F/cm
+const kbT = 0.0259; // Thermal voltage @ 300K
+
+// === عامل التحكم في العشوائية البصرية (للحركة الحرارية) ===
+const VISUAL_DIFFUSION_SCALE = 15.0; 
+// ==========================================================
+
 export const devices = [
+  // ================= O-TYPE DEVICES (Vacuum Tubes) =================
   { 
        id: 'klystron2', 
        name: 'Two-Cavity Klystron', 
@@ -24,18 +35,9 @@ export const devices = [
              eq: "v_0 = \\sqrt{\\frac{2e V_0}{m}} \\approx 0.593 \\times 10^6 \\sqrt{V_0} \\text{ m/s}"
          },
          {
-             title: "Interaction Gap Dynamics",
-             text: "As the beam passes through the grids of the buncher cavity, it is subjected to an RF voltage V1 sin(ωt). The velocity of the electrons exiting the buncher cavity is modulated by the RF signal:",
-             eq: "v(t_1) = v_0 \\left[ 1 + \\frac{\\beta_i V_1}{2 V_0} \\sin(\\omega t_0) \\right]"
-         },
-         {
              title: "The Bunching Process",
              text: "Following velocity modulation, electrons enter a field-free drift space of length L. Accelerated electrons overtake slower ones, forming bunches. The degree of bunching is quantified by the Bunching Parameter X:",
              eq: "X = \\frac{\\beta_i V_1}{2 V_0} \\frac{\\omega L}{v_0}"
-         },
-         {
-             title: "Efficiency Limits",
-             text: "Theoretical analysis using Bessel functions shows that the fundamental component of the beam current is maximized when X = 1.841, leading to a maximum theoretical electronic efficiency of 58%."
          }
        ],
        equations: (p) => {
@@ -47,24 +49,33 @@ export const devices = [
            const L = (p.L || 5) / 100;
            
            const theta_g = (omega * d) / v0;
-           
            let beta = 1;
            if (Math.abs(theta_g/2) > 0.001) beta = Math.sin(theta_g/2)/(theta_g/2);
- 
+
            const theta_0 = (omega * L) / v0; 
            const V1 = p.Vi || 800;
            const X = (beta * V1 / (2 * Vo)) * theta_0;
- 
+
            const L_opt_meters = (3.682 * Vo * v0) / (omega * beta * V1);
            const L_opt_cm = L_opt_meters * 100;
- 
+
            return {
-             'Beam Velocity': { value: Math.sqrt(2 * 1.759e11 * p.Vo * 1000).toFixed(2), unit: 'm/s', latex: 'v_0 = \\sqrt{\\frac{2eV_0}{m}}' },
-             'Bunching Param (X)': { value: X.toFixed(3), unit: '', latex: 'X = \\frac{\\beta V_1}{2V_0}\\theta_0' },
-             'Coupling Coeff (β)': { value: beta.toFixed(3), unit: '', latex: '\\beta = \\text{sinc}(\\theta_g/2)' },
-             'Gap Angle (θg)': { value: theta_g.toFixed(2), unit: 'rad', latex: '\\theta_g = \\omega d/v_0' },
-             'Optimum Drift (L)': { value: L_opt_cm.toFixed(2), unit: 'cm', latex: 'L_{opt} \\approx \\frac{3.68 V_0 v_0}{\\omega \\beta V_1}' },
-             'Output Power': { value: (p.Io * p.Vi * 0.582 * 0.5).toFixed(2), unit: 'W', latex: 'P_{out} \\approx I_0 V_1 M_1' }
+             'Beam Velocity': { value: v0.toExponential(2), unit: 'm/s', latex: 'v_0' },
+             'Bunching Param (X)': { value: X.toFixed(3), unit: '', latex: 'X' },
+             'Coupling Coeff (β)': { value: beta.toFixed(3), unit: '', latex: '\\beta' },
+             'Optimum Drift (L)': { value: L_opt_cm.toFixed(2), unit: 'cm', latex: 'L_{opt}' }
+           };
+       },
+       calculate: (params, t) => {
+           const Vo = params.Vo * 1000;
+           const v0 = 0.593e6 * Math.sqrt(Vo);
+           const w = 2 * Math.PI * params.f * 1e9;
+           const theta_0 = (w * (params.L/100)) / v0;
+           const I2 = 2 * params.Io * 0.58; 
+           return {
+               current: params.Io * (1 + 1.1 * Math.sin(w*t - theta_0)),
+               voltage: params.Vi * Math.sin(w*t),
+               power: I2 * params.Vi * 0.5
            };
        }
      },
@@ -92,35 +103,22 @@ export const devices = [
              text: "To enhance gain (typically >50 dB) and bandwidth, multi-cavity klystrons are used. Intermediate cavities are unloaded; the beam induces voltage across them, producing a second stage of velocity modulation stronger than the first."
          },
          {
-             title: "Stagger Tuning & Bandwidth",
-             text: "A major limitation of resonant cavities is narrow bandwidth (High Q). Stagger tuning is employed where intermediate cavities are slightly detuned from the carrier to flatten the gain response, representing a classic gain-bandwidth trade-off."
+             title: "Stagger Tuning",
+             text: "Stagger tuning is employed where intermediate cavities are slightly detuned from the carrier to flatten the gain response."
          }
        ],
        equations: (p) => {
-           const Vo = (p.Vo || 15) * 1000;
-           const v0 = 5.93e5 * Math.sqrt(Vo);
-           const f = (p.f || 3) * 1e9;
-           const omega = 2 * Math.PI * f;
-           const d = (p.d || 3) / 1000;
-           const V1 = p.Vi || 500;
-           
-           const theta_g = (omega * d) / v0;
-           let beta = 1;
-           if (Math.abs(theta_g/2) > 0.001) beta = Math.sin(theta_g/2)/(theta_g/2);
-           
-           const safe_Vi = Math.max(V1, 10); 
-           const L_opt_meters = (3.682 * Vo * v0) / (omega * beta * safe_Vi);
-           const L_opt_cm = L_opt_meters * 100;
-           
+           const totalGain = (p.N || 4) * (p.G || 8);
+           const pin_watts = Math.pow((p.Vi || 500), 2) / 50; // Approx
+           const pout = pin_watts * Math.pow(10, totalGain/10);
            return {
-             'Coupling Coeff (β)': { value: beta.toFixed(3), unit: '', latex: '\\beta = \\text{sinc}(\\theta_g/2)' },
-             'Optimum Drift (L)': { value: L_opt_cm.toFixed(2), unit: 'cm', latex: 'L_{opt} \\text{ (Inter-cavity)}' },
-             'Total Gain': { value: ((p.N || 4) * (p.G || 8)).toFixed(1), unit: 'dB', latex: 'G = N \\cdot G_{stage}' },
-             'Power Gain': { value: Math.pow(10, ((p.N || 4) * (p.G || 8)) / 10).toExponential(2), unit: 'linear', latex: 'A_p = 10^{G/10}' },
-             'Output Power': { value: ((p.Vi || 500) * (p.Io || 500) * Math.pow(10, ((p.N || 4) * (p.G || 8)) / 10) / 1000).toFixed(2), unit: 'W', latex: 'P_{out} = P_{in} \\times 10^{G/10}' },
-             'Efficiency': { value: (((p.Vi || 500) * (p.Io || 500) * Math.pow(10, ((p.N || 4) * (p.G || 8)) / 10)) / (Vo * (p.Io || 500))).toFixed(3), unit: '', latex: '\\eta = \\frac{P_{out}}{V_0 I_0}' }
- 
+             'Total Gain': { value: totalGain.toFixed(1), unit: 'dB', latex: 'G_{tot}' },
+             'Power Gain': { value: Math.pow(10, totalGain/10).toExponential(2), unit: 'x', latex: 'A_p' },
+             'Est. Efficiency': { value: (Math.min(0.6, pout / ((p.Vo*1000)*(p.Io/1000)))*100).toFixed(1), unit: '%', latex: '\\eta' }
            };
+       },
+       calculate: (params, t) => { 
+           return { current: 100, voltage: params.Vo * 1000, power: 1000 }; 
        }
      },
      { 
@@ -141,24 +139,30 @@ export const devices = [
          explanation: [
              {
                  title: "Principle of Operation",
-                 text: "Utilizes a repeller electrode biased at a negative potential to reverse the electron beam. The 'drift space' is folded back on itself. Fast electrons penetrate deeper into the repeller field, while slow electrons return sooner, creating bunches."
+                 text: "Utilizes a repeller electrode biased at a negative potential to reverse the electron beam. The 'drift space' is folded back on itself."
              },
              {
-                title: "Transit Time Condition",
-                text: "For oscillation, the round-trip transit time T' must correspond to specific portions of the RF cycle (Mode Numbers n):",
-                eq: "T' = \\left( n + \\frac{3}{4} \\right) T = \\frac{2\\pi n + \\frac{3\\pi}{2}}{\\omega}"
-            },
-             {
-                 title: "Electronic Tuning",
-                 text: "Varying the repeller voltage changes the phase of the returned current, allowing fine frequency control (10-50 MHz) for AFC applications."
+                 title: "Transit Time Condition",
+                 text: "For oscillation, the round-trip transit time T' must correspond to specific portions of the RF cycle (Mode Numbers n):",
+                 eq: "T' = \\left( n + \\frac{3}{4} \\right) T"
              }
          ],
-         equations: (p) => ({
-           'Mode Number': { value: Math.round(2 * (p.L || 3) * 1e-3 * (p.f || 9) * 1e9 * Math.sqrt(9.11e-31 / (2 * 1.6e-19 * (p.Vo || 600))) - 0.75).toString(), unit: '', latex: 'n = \\lfloor 2Lf\\sqrt{m/2eV_0} - 0.75 \\rfloor' },
-           'Transit Time': { value: (2 * (p.L || 3) * 1e-3 / Math.sqrt(2 * 1.6e-19 * (p.Vo || 600) / 9.11e-31) * 1e9).toFixed(3), unit: 'ns', latex: 'T = \\frac{2L}{v_0}' },
-           'Repeller Field': { value: ((p.Vr || 350) / ((p.L || 3) * 1e-3)).toFixed(0), unit: 'V/m', latex: 'E_r = V_r/L' },
-           'Power Output': { value: ((p.Vo || 600) * 0.05).toFixed(2), unit: 'mW', latex: 'P_{out} \\sim V_0/20' }
-         })
+         equations: (p) => {
+             const n = Math.round(2 * (p.L || 3) * 1e-3 * (p.f || 9) * 1e9 * Math.sqrt(9.11e-31 / (2 * 1.6e-19 * (p.Vo || 600))) - 0.75);
+             return {
+               'Mode Number': { value: n.toString(), unit: '', latex: 'n' },
+               'Transit Time': { value: (2 * (p.L || 3) * 1e-3 / Math.sqrt(2 * 1.6e-19 * (p.Vo || 600) / 9.11e-31) * 1e9).toFixed(3), unit: 'ns', latex: 'T' },
+               'Repeller Field': { value: ((p.Vr || 350) / ((p.L || 3) * 1e-3)).toFixed(0), unit: 'V/m', latex: 'E_r' }
+             };
+         },
+         calculate: (params, t) => {
+             const w = 2 * Math.PI * params.f * 1e9;
+             return {
+                 current: 0.05 * Math.sin(w*t),
+                 voltage: params.Vo,
+                 power: 0.1
+             };
+         }
        },
        {
          id: 'twt', 
@@ -184,57 +188,63 @@ export const devices = [
                  eq: "v_p \\approx c \\sin \\psi"
              },
              {
-                 title: "Attenuator (Sever)",
-                 text: "To prevent oscillations from reflected waves, an attenuator is placed along the helix. It absorbs the EM wave but allows the electron bunches (carrying the signal info) to pass through and regenerate the wave."
-             },
-             {
                  title: "Pierce Gain Theory",
                  text: "Interaction is described by the Pierce Gain Parameter C. The total power gain accounts for launching losses (-9.54 dB) and the growing wave:",
                  eq: "G_{dB} \\approx -9.54 + 47.3 N C"
              }
          ],
-         equations: (p) => ({
-           'Small-Signal Gain': { value: (47.3 * (p.C || 0.1) * (p.N || 40)).toFixed(1), unit: 'dB', latex: 'G = 47.3CN' },
-           'Pierce Parameter': { value: (p.C || 0.1).toFixed(3), unit: '', latex: 'C = (I_0Z_0/4V_0)^{1/3}' },
-           'Beam Velocity': { value: (Math.sqrt(2 * 1.759e11 * (p.Vo || 3) * 1000) * 1e-6).toFixed(2), unit: '10⁶ m/s', latex: 'v_0 = \\sqrt{2eV_0/m}' },
-           'Output Power': { value: ((p.Vi || 20) * Math.pow(10, 47.3 * (p.C || 0.1) * (p.N || 40) / 20)).toFixed(2), unit: 'W', latex: 'P_{out} = P_{in} \\cdot 10^{G/20}' }
-         })
-     },
-       
-    { 
-       id: 'obwo', 
-       name: 'O-Type BWO', 
-       type: 'O-TYPE', // <--- التغيير هنا: توحيد النوع ليظهر مع باقي المجموعة
-       params: [
-         { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 20, def: 5, step: 0.1 },
-         { id: 'Io', label: 'Beam Current', unit: 'mA', min: 10, max: 500, def: 100, step: 10 },
-         { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 100, def: 10, step: 0.5 },
-         { id: 'L', label: 'Structure Length', unit: 'cm', min: 5, max: 30, def: 15, step: 0.5 }
-       ],
-       desc: 'O-Type Backward Wave Oscillator. Kinetic energy conversion with continuous bunching along the tube axis.',
-       theory: { 
-         plain: 'Beam Velocity: v = √(2eV/m)', 
-         latex: 'v_e = \\sqrt{\\frac{2e V_{0}}{m}} \\approx v_{phase}' 
-       },
-       explanation: [
-         { 
-             title: "O-Type Bunching", 
-             text: "Electrons enter with constant velocity. The backward wave's field modulates their velocity, causing fast electrons to catch up with slower ones, forming 'space charge bunches'."
+         equations: (p) => {
+             const G = 47.3 * (p.C || 0.1) * (p.N || 40);
+             return {
+               'Small-Signal Gain': { value: G.toFixed(1), unit: 'dB', latex: 'G' },
+               'Pierce Parameter': { value: (p.C || 0.1).toFixed(3), unit: '', latex: 'C' },
+               'Beam Velocity': { value: (Math.sqrt(2 * 1.759e11 * (p.Vo || 3) * 1000) * 1e-6).toFixed(2), unit: '10⁶ m/s', latex: 'v_0' },
+               'Output Power': { value: ((p.Vi || 20) * Math.pow(10, G / 20)).toFixed(2), unit: 'W', latex: 'P_{out}' }
+             };
          },
-         { 
-             title: "Backward Wave", 
-             text: "The RF energy travels opposite to the electron beam direction. The interaction initiates near the collector, and the wave grows in amplitude as it travels back towards the gun."
-         },
-         { 
-             title: "Energy Extraction", 
-             text: "Unlike TWTs, the RF output is extracted at the electron gun end (cathode side) where the backward wave is strongest." 
+         calculate: (params, t) => {
+             const G_db = -9.54 + 47.3 * params.N * params.C;
+             const G = Math.pow(10, G_db/10);
+             const Pout = params.Vi * G; 
+             return {
+                 current: params.Io,
+                 voltage: params.Vo * 1000,
+                 power: Pout
+             };
          }
-       ],
-       equations: (p) => ({
-         'Beam Velocity': { value: (0.593 * Math.sqrt((p.Vo || 5)*1000)).toFixed(2), unit: 'km/s', latex: 'v_e = 5.93 \\cdot 10^5 \\sqrt{V_0}' },
-         'Approx Output Power': { value: (((p.Vo || 5) * (p.Io || 100)) * 0.15).toFixed(1), unit: 'W', latex: 'P_{out} \\approx \\eta \\cdot I_0 V_0' }
-       })
-     },
+       },
+       
+      { 
+         id: 'obwo', 
+         name: 'O-Type BWO', 
+         type: 'O-TYPE', 
+         params: [
+           { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 20, def: 5, step: 0.1 },
+           { id: 'Io', label: 'Beam Current', unit: 'mA', min: 10, max: 500, def: 100, step: 10 },
+           { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 100, def: 10, step: 0.5 },
+           { id: 'L', label: 'Structure Length', unit: 'cm', min: 5, max: 30, def: 15, step: 0.5 }
+         ],
+         desc: 'O-Type Backward Wave Oscillator. Kinetic energy conversion with continuous bunching along the tube axis.',
+         theory: { 
+           plain: 'Beam Velocity: v = √(2eV/m)', 
+           latex: 'v_e = \\sqrt{\\frac{2e V_{0}}{m}} \\approx v_{phase}' 
+         },
+         explanation: [
+           { 
+               title: "O-Type Bunching", 
+               text: "Electrons enter with constant velocity. The backward wave's field modulates their velocity, causing fast electrons to catch up with slower ones, forming 'space charge bunches'."
+           },
+           { 
+               title: "Backward Wave", 
+               text: "The RF energy travels opposite to the electron beam direction. The interaction initiates near the collector, and the wave grows in amplitude as it travels back towards the gun."
+           }
+         ],
+         equations: (p) => ({
+           'Beam Velocity': { value: (0.593 * Math.sqrt((p.Vo || 5)*1000)).toFixed(2), unit: 'km/s', latex: 'v_e' },
+           'Approx Output Power': { value: (((p.Vo || 5) * (p.Io || 100)) * 0.15).toFixed(1), unit: 'W', latex: 'P_{out}' }
+         }),
+         calculate: (params, t) => { return { current: 50, voltage: params.Vo * 1000, power: 50 }; }
+       },
        
        // --- CROSSED-FIELD (M-TYPE) ---
        { 
@@ -264,20 +274,30 @@ export const devices = [
                  title: "Hull Cutoff Condition",
                  text: "Magnetic field must be strong enough to prevent electrons from flying directly to the anode in absence of RF. This voltage threshold is:",
                  eq: "V_{0c} = \\frac{e B_0^2 b^2}{8m} \\left( 1 - \\frac{a^2}{b^2} \\right)^2"
-             },
-             {
-                 title: "Hartree Condition & Spokes",
-                 text: "Oscillation begins when RF phase velocity matches electron drift velocity. Electrons forming 'spokes' rotate with the wave, delivering energy to the anode resonators."
              }
          ],
-         equations: (p) => ({
-           'Hull Cutoff': { value: ((1.759e11 / 8) * Math.pow((p.Bo || 336) * 1e-3, 2) * (Math.pow((p.rb || 30) * 1e-3, 2) - Math.pow((p.ra || 10) * 1e-3, 2)) / 1000).toFixed(2), unit: 'kV', latex: 'V_H = \\frac{eB^2}{8m}(r_b^2-r_a^2)' },
-           'Hartree Voltage': { value: (((1.759e11 / 8) * Math.pow((p.Bo || 336) * 1e-3, 2) * (Math.pow((p.rb || 30) * 1e-3, 2) - Math.pow((p.ra || 10) * 1e-3, 2)) / 1000) * (1 - Math.pow((p.ra || 10) / (p.rb || 30), 2 / (p.N || 8)))).toFixed(2), unit: 'kV', latex: 'V_a = V_H[1-(r_a/r_b)^{2/N}]' },
-           'Drift Velocity': { value: (((p.Vo || 26) * 1000) / ((p.Bo || 336) * 1e-3 * (p.rb || 30) * 1e-3)).toFixed(0), unit: 'm/s', latex: 'v_d = E/B = V_0/(Br_b)' },
-           'Frequency': { value: ((((p.Vo || 26) * 1000) /((p.Bo || 336) * 1e-3 * Math.PI * Math.pow((p.rb || 30) * 1e-3, 2))) * 1e-9 * (1 + (p.tune || 0) / 100)).toFixed(2),unit: 'GHz',latex: 'f = f_0(1 + T/100)'}
-         })
+         equations: (p) => {
+             const B = (p.Bo || 336) * 1e-3;
+             const ra = (p.ra || 10) * 1e-3;
+             const rb = (p.rb || 30) * 1e-3;
+             const Vo = (p.Vo || 26) * 1000;
+             const e_m = 1.759e11;
+             
+             const Vc = (e_m/8) * B*B * rb*rb * Math.pow(1 - (ra*ra)/(rb*rb), 2);
+             const Va = Vc * (1 - Math.pow(ra/rb, 2/(p.N || 8)));
+             
+             return {
+               'Hull Cutoff': { value: (Vc/1000).toFixed(2), unit: 'kV', latex: 'V_H' },
+               'Hartree Voltage': { value: (Va/1000).toFixed(2), unit: 'kV', latex: 'V_a' },
+               'Drift Velocity': { value: (Vo / (B*rb)).toFixed(0), unit: 'm/s', latex: 'v_d = E/B' },
+               'Frequency': { value: ((Vo / (B * Math.PI * rb*rb)) * 1e-9 * (1 + (p.tune || 0) / 100)).toFixed(2), unit: 'GHz', latex: 'f' }
+             };
+         },
+         calculate: (params, t) => {
+             return { current: 10, voltage: params.Vo * 1000, power: 1000 };
+         }
        },
- 
+
      // === M-TYPE BWO (CARCINOTRON) ===
      { 
        id: 'carcinotron', 
@@ -301,10 +321,6 @@ export const devices = [
          { 
              title: "Potential Energy Exchange", 
              text: "Electrons in a decelerating field lose potential energy and drift towards the Anode (upward). Electrons in an accelerating field gain energy and move towards the Sole (downward)." 
-         },
-         {
-             title: "Backward Wave Interaction",
-             text: "The RF energy travels opposite to the electron beam direction (Backward Wave) and is extracted near the electron gun."
          }
        ],
        equations: (p) => {
@@ -313,13 +329,13 @@ export const devices = [
          const d = (p.d || 8) * 1e-3; 
          const E = V / d;
          const v_drift = E / B;
- 
          return {
            'Electric Field (E)': { value: (E/1e6).toFixed(2), unit: 'MV/m', latex: 'E = V/d' },
            'Drift Velocity (ve)': { value: (v_drift).toExponential(2), unit: 'm/s', latex: 'v_e = E/B' },
            'Approx Frequency': { value: (v_drift / 1e7 * 2.5).toFixed(2), unit: 'GHz', latex: 'f \\propto v_e' }
          };
-       }
+       },
+       calculate: (params, t) => { return { current: 10, voltage: params.Vo * 1000, power: 100 }; }
      },
        
      // ===================== MICROWAVE SOLID-STATE DEVICES =====================
@@ -334,89 +350,123 @@ export const devices = [
          { id: 'T', label: 'Temperature', unit: '°C', min: 20, max: 150, def: 50, step: 5 },
          { id: 'Nd', label: 'Doping Density', unit: 'cm⁻³', min: 1e14, max: 1e17, def: 1e16, step: 1e15 },
          { id: 'vd', label: 'Domain Velocity', unit: 'cm/s', min: 5e6, max: 2e7, def: 1e7, step: 5e5 },
+         { id: 'Vth', label: 'Threshold Field', unit: 'kV/cm', min: 2, max: 5, def: 3.2, step: 0.1 }
        ],
-       desc: 'Bulk semiconductor device utilizing the Transferred Electron Effect (RWH).',
+       desc: 'Transferred Electron Device (TED). Relies on bulk material properties rather than PN junctions. Uses n-type GaAs or InP.',
        theory: {
-         plain: 'Transferred electron effect: Negative resistance above threshold field.',
-         latex: 'E_{th} \\approx 3.2 kV/cm, f = v_d/L'
+         plain: 'Ridley-Watkins-Hilsum (RWH) Theory. Two-Valley Model (GaAs). Threshold Field ~ 3000 V/cm.',
+         latex: 'v_d = \\mu E, \\quad n_0 L > 10^{12} \\text{ cm}^{-2} \\text{ (for oscillation)}'
        },
        explanation: [
          {
-             title: "The Two-Valley Model (GaAs)",
-             text: "In n-type GaAs, the conduction band has two minima: a central lower valley (high mobility) and satellite upper valleys (low mobility). When E > Threshold (approx 3000 V/cm), electrons transfer to the upper valley, reducing average velocity despite higher field.",
+             title: "Two-Valley Model Theory (GaAs)",
+             text: "In n-type GaAs, a high-mobility lower valley is separated by an energy gap (0.36 eV) from a low-mobility upper valley. When the electric field E > Threshold (approx 3000 V/cm), electrons transfer from the high-mobility lower valley to the low-mobility upper valley.",
              eq: "\\mu_L \\approx 8000 \\gg \\mu_U \\approx 180 \\text{ cm}^2/V\\cdot s"
          },
          {
-             title: "Negative Differential Resistance (NDR)",
-             text: "This transfer causes dv/dE < 0. Instabilities form 'High-Field Domains' that drift across the sample at saturated velocity vs ≈ 10^7 cm/s."
+             title: "Negative Differential Resistance",
+             text: "This transfer decreases drift velocity as the electric field increases (dv/dE < 0), causing negative resistance. This leads to the formation of high-field domains."
+         },
+         {
+             title: "Modes of Operation",
+             text: "1. Gunn Oscillation Mode (transit-time freq). 2. Stable Amplification Mode. 3. LSA Mode (Limited Space-charge Accumulation). 4. Bias-circuit oscillation mode."
+         },
+         {
+             title: "Tuning",
+             text: "Can be tuned mechanically (cavity screw), electrically (Varactor), or magnetically (YIG sphere) for lower phase noise."
          }
        ],
-       equations: (p) => ({
-         'Electric Field': {
-           value: ((p.V || 12) / ((p.L || 10) * 1e-4)).toFixed(0),
-           unit: 'V/cm'
-         },
-         'Threshold Field': { value: '3200', unit: 'V/cm' },
-         'Domain Velocity': {
-           value: (p.vd || 1e7).toExponential(2),
-           unit: 'cm/s'
-         },
-         'Frequency': {
-           value: (((p.vd || 1e7) / ((p.L || 10) * 1e-4)) / 1e9).toFixed(3),
-           unit: 'GHz'
-         },
-         'Output Power': {
-           value: (
-             ((p.V || 12) / ((p.L || 10) * 1e-4)) > 3200
-             ? (p.V || 12) * (p.A || 0.1) * (p.Nd || 1e16) * 1e-18
-             : 0
-           ).toFixed(3),
-           unit: 'W'
-         }
-       })
+       equations: (p) => {
+           const L = (p.L || 10);
+           const V = (p.V || 12);
+           const E = V / (L * 1e-4);
+           const Nd = (p.Nd || 1e16);
+           return {
+             'Electric Field': { value: (E/1000).toFixed(2), unit: 'kV/cm', latex: 'E = V/L' },
+             'Threshold Field': { value: (p.Vth || 3.2), unit: 'kV/cm', latex: 'E_{th}' },
+             'Frequency': { value: (((p.vd || 1e7) / (L * 1e-4)) / 1e9).toFixed(3), unit: 'GHz', latex: 'f = v_d/L' },
+             'Mode Criterion (n₀L)': { value: (Nd * L * 1e-4).toExponential(2), unit: 'cm⁻²', latex: 'n_0 L > 10^{12}' }
+           };
+       },
+       calculate: (params, t) => {
+           const E = (params.V / ((params.L || 10) * 1e-4));
+           const Eth = (params.Vth || 3.2) * 1000;
+           
+           const f = 1e7 / (params.L || 10); 
+           const omega = 2 * Math.PI * f * 1e-9; 
+           const osc = E > Eth ? Math.sin(omega * t * 10) : 0;
+
+           return {
+               current: 10 * (1 + 0.5*osc), 
+               voltage: params.V + osc,
+               power: params.V * 0.1 
+           };
+       }
      },
- 
+
      // ===================== TUNNEL =====================
      {  
        id: 'tunnel',  
        name: 'Tunnel Diode',  
        type: 'QUANTUM EFFECT',
        params: [
-         { id: 'V', label: 'Bias Voltage', unit: 'mV', min: 0, max: 600, def: 150, step: 10 },
+         { id: 'Vbias', label: 'Bias Voltage', unit: 'mV', min: 0, max: 600, def: 150, step: 10 },
          { id: 'Ip', label: 'Peak Current', unit: 'mA', min: 1, max: 100, def: 10, step: 1 },
          { id: 'Vp', label: 'Peak Voltage', unit: 'mV', min: 50, max: 150, def: 100, step: 5 },
+         { id: 'Vv', label: 'Valley Voltage', unit: 'mV', min: 200, max: 600, def: 350, step: 20 },
+         { id: 'Iv', label: 'Valley Current', unit: 'mA', min: 0.1, max: 5, def: 1, step: 0.1 },
          { id: 'Cj', label: 'Junction Capacitance', unit: 'pF', min: 0.5, max: 20, def: 5, step: 0.5 },
          { id: 'Rs', label: 'Series Resistance', unit: 'Ω', min: 1, max: 20, def: 5, step: 1 }
        ],
-       desc: 'Quantum tunneling diode with negative resistance.',
+       desc: 'Heavily doped PN junction using quantum mechanical tunneling. Very high speed.',
        theory: {
-         plain: 'Tunneling Current: I ∝ exp(-const/√E), NDR Region: Vₚ < V < Vᵥ, Speed: τ ≈ 1 ps, Freq: f_max > 100 GHz',
-         latex: 'I \\propto e^{-A/\\sqrt{E}}, \\quad \\text{NDR: } V_p < V < V_v, \\quad f_{max} > 100 \\text{ GHz}'
+         plain: 'Total Current = Diffusion + Tunneling + Excess Current. Negative Resistance Region.',
+         latex: 'I_{total} = I_{diff} + I_{tunnel} + I_{excess}, \\quad V_p < V < V_v'
        },
        explanation: [
          {
              title: "Quantum Tunneling",
-             text: "Formed from degenerate p-n junctions (>10^19 cm^-3). At low bias, electrons tunnel through the forbidden gap. As voltage increases, bands uncross and current drops, creating a Negative Resistance Region.",
-             eq: "I = I_p \exp( - \alpha (V - V_p)^2 )"
+             text: "Formed from degenerate p-n junctions (doping > 10^19 cm^-3). At low bias, electrons tunnel through the forbidden gap. As voltage increases, bands uncross and current drops, creating a Negative Resistance Region."
          },
          {
-             title: "Cutoff Frequency",
-             text: "The resistive cutoff frequency is determined by the negative resistance Rn and junction capacitance Cj:",
-             eq: "f_{ro} = \\frac{1}{2\\pi R_{min} C_j} \\sqrt{\\frac{R_{min}}{R_s} - 1}"
+             title: "Current Components",
+             text: "1. Normal Diode Current (Diffusion). 2. Tunneling Current (Quantum effect). 3. Excess Current (Tunneling through bulk states in energy gap)."
+         },
+         {
+             title: "Pros & Cons",
+             text: "Advantages: Very high speed (microwave RF), long-term stability. Disadvantages: Hard to reproduce, low peak-to-valley current ratio."
          }
        ],
-       equations: (p) => ({
-         'Tunnel Current': {
-           value: ((p.Ip || 10) * Math.exp(-Math.pow(((p.V || 150) - (p.Vp || 100)) / 100, 2))).toFixed(3),
-           unit: 'mA'
-         },
-         'Cutoff Freq': {
-           value: ((p.Ip || 10) / (2 * Math.PI * 1e-12 * (p.Vp || 100) * 1e-3)).toFixed(1),
-           unit: 'GHz'
-         }
-       })
+       equations: (p) => {
+           const V = p.Vbias || 150;
+           const Vp = p.Vp || 100;
+           const Ip = p.Ip || 10;
+           return {
+             'Tunnel Current': {
+               value: (Ip * Math.exp(-Math.pow((V - Vp) / 100, 2))).toFixed(3),
+               unit: 'mA',
+               latex: 'I(V)'
+             },
+             'Peak-Valley Ratio': { value: (Ip / (p.Iv || 1)).toFixed(2), unit: '', latex: 'I_p/I_v' },
+             'Operating Point': { value: V, unit: 'mV', latex: 'V_{bias}' }
+           };
+       },
+       calculate: (params, t) => {
+           const v = params.Vbias;
+           const Vp = params.Vp || 100;
+           const Vv = params.Vv || 350;
+           const Ip = params.Ip || 10;
+           const Iv = params.Iv || 1;
+           
+           let i = 0;
+           if (v < Vp) i = (Ip/Vp) * v;
+           else if (v < Vv) i = Ip - ((Ip - Iv)/(Vv - Vp))*(v - Vp);
+           else i = Iv + (v - Vv) * 0.1;
+
+           return { current: i, voltage: v, power: i*v };
+       }
      },
- 
+
      // ===================== IMPATT =====================
      {  
        id: 'impatt',  
@@ -429,33 +479,47 @@ export const devices = [
          { id: 'eps', label: 'Permittivity', unit: 'F/m', min: 8e-12, max: 13e-12, def: 12e-12, step: 1e-12 },
          { id: 'vs', label: 'Saturation Velocity', unit: 'cm/s', min: 5e6, max: 2e7, def: 1e7, step: 5e5 }
        ],
-       desc: 'Impact ionization diode operating in avalanche mode.',
+       desc: 'IMPact ionisation Avalanche Transit Time. Read Diode structure (n+-p-i-p+).',
        theory: {
-         plain: 'Avalanche Phase: φₐ ≈ π/2, Transit Phase: φₜ = ωW/v_s, Total: φ = π, Efficiency: η ∝ 1/(1+ω²τ²)',
-         latex: '\\phi_a \\approx \\frac{\\pi}{2}, \\quad \\phi_t = \\frac{\\omega W}{v_s}, \\quad \\phi_{total} = \\pi'
+         plain: 'Total Delay = Avalanche Delay (90°) + Transit Time Delay (90°) = 180°. Negative Resistance.',
+         latex: '\\theta = \\omega \\tau = \\pi, \\quad f \\approx \\frac{v_d}{2L}, \\quad \\eta \\approx 5-10\\%'
        },
        explanation: [
          {
-             title: "Avalanche & Transit Delays",
-             text: "Relies on two delays to create 180° phase shift (negative resistance): 1) Avalanche Delay (90°): Current peaks lag voltage peaks due to ionization buildup. 2) Transit Time Delay (90°): Carriers drift across depletion region."
+             title: "Read Diode Structure",
+             text: "Typically uses n+-p-i-p+ structure. Avalanche multiplication occurs in the high-field p region. The intrinsic (i) region acts as the drift space."
          },
          {
-             title: "Power Generation",
-             text: "Total 180° shift means current directly opposes voltage, generating maximum power. IMPATTs are the most powerful solid-state sources (up to 100 GHz) but are noisy."
+             title: "Principle of Operation",
+             text: "Negative resistance is achieved by creating a 180° phase shift between voltage and current: 1) Avalanche Delay due to buildup time. 2) Transit Time Delay as carriers drift across the depletion region."
+         },
+         {
+             title: "Performance",
+             text: "High power capability (10W+). 3-100 GHz. GaAs devices generally perform better than Silicon. High phase noise due to avalanche statistics."
          }
        ],
        equations: (p) => ({
          'Avalanche Field': {
            value: ((p.Vd||90)/((p.W||2)*1e-4)).toFixed(0),
-           unit: 'V/cm'
+           unit: 'V/cm',
+           latex: 'E_{bd}'
          },
          'Transit Time': {
            value: (((p.W||2)*1e-6/(p.vs||1e7))*1e12).toFixed(2),
-           unit: 'ps'
+           unit: 'ps',
+           latex: '\\tau'
+         },
+         'Approx Frequency': {
+            value: ((p.vs || 1e7) / (2 * (p.W || 2) * 1e-4) / 1e9).toFixed(1),
+            unit: 'GHz',
+            latex: 'f \\approx v_s/2W'
          }
-       })
+       }),
+       calculate: (params, t) => {
+           return { current: params.I, voltage: params.Vd, power: params.Vd * params.I };
+       }
      },
- 
+
      // ===================== TRAPATT =====================
      {  
        id: 'trapatt',  
@@ -468,24 +532,196 @@ export const devices = [
          { id: 'alpha', label: 'Ionization Rate', unit: 'cm⁻¹', min: 5e3, max: 2e4, def: 1e4, step: 5e2 },
          { id: 'rho', label: 'Plasma Density', unit: 'cm⁻³', min: 1e13, max: 1e17, def: 1e15, step: 1e14 }
        ],
-       desc: 'Plasma avalanche diode with high oscillation power.',
+       desc: 'Trapped Plasma Avalanche Triggered Transit. High efficiency microwave generator derived from IMPATT.',
        theory: {
-         plain: 'Plasma Formation: τₐ ≈ 100 ps, Extraction: τₑ = W/v_s, Efficiency: η ≈ 30-60%, Peak P: P_pk = V×I',
-         latex: '\\tau_a \\approx 100 \\text{ ps}, \\quad \\tau_e = W/v_s, \\quad \\eta \\approx 30-60\\%, \\quad P_{pk} = VI'
+         plain: 'Trapped Plasma Mode. High Efficiency (15-60%). High Current Densities.',
+         latex: '\\eta \\approx 15-60\\%, \\quad P_{pk} \\approx 1.2 \\text{ kW}'
        },
        explanation: [
          {
-             title: "Trapped Plasma Mode",
-             text: "Overdrives the diode with a massive current pulse, filling the depletion region with a dense plasma that collapses the electric field. The plasma is 'trapped'."
+             title: "Trapped Plasma Formation",
+             text: "A high-field avalanche zone propagates through the diode, filling the depletion layer with a dense plasma of electrons and holes. This plasma becomes 'trapped' in the low-field region."
          },
          {
-             title: "High Efficiency",
-             text: "The slow extraction of this plasma results in low-frequency, high-efficiency (up to 60%) oscillations, unlike the transit-time limited IMPATT mode."
+             title: "Operation Cycle",
+             text: "Charging -> Plasma Formation -> Plasma Extraction -> Residual Extraction. Operates at current densities well in excess of normal avalanche operation."
+         },
+         {
+             title: "Comparison",
+             text: "Unlike IMPATT, TRAPATT has much higher efficiency (up to 75% at 0.6 GHz) but is very noisy (>30dB). Used in pulsed transmitters."
          }
        ],
        equations: (p) => ({
-         'Peak Power': { value: ((p.V || 100) * (p.I || 40)).toFixed(0), unit: 'W' },
-         'Plasma Density': { value: (p.rho||1e15).toExponential(2), unit: 'cm⁻³' }
-       })
+         'Peak Power': { value: ((p.V || 100) * (p.I || 40)).toFixed(0), unit: 'W', latex: 'P_{pk}' },
+         'Efficiency': { value: '15-60', unit: '%', latex: '\\eta' }
+       }),
+       calculate: (params, t) => {
+           return { current: params.I, voltage: params.V, power: params.I * params.V };
+       }
      },
- ];
+];
+
+// تهيئة الحاملات (Initial Carriers)
+export const initializeCarriers = (deviceType, params, width) => {
+    let carriers = { electrons: [], holes: [] };
+    const numCarriers = 80; 
+
+    // منطق مشترك للأجهزة المضافة
+    if (['klystronMulti', 'obwo', 'carcinotron'].includes(deviceType)) {
+         return carriers; 
+    }
+
+    if (deviceType === 'gunn') {
+        for(let i=0; i<numCarriers; i++) {
+            carriers.electrons.push({
+                x: Math.random() * width,
+                vx: 0,
+                id: i
+            });
+        }
+    } else if (deviceType === 'impatt' || deviceType === 'trapatt') {
+        for(let i=0; i<numCarriers/2; i++) {
+            carriers.electrons.push({ x: Math.random() * width, vx: 0, id: i });
+            carriers.holes.push({ x: Math.random() * width, vx: 0, id: i + 1000 });
+        }
+    } else if (deviceType === 'tunnel') {
+        for(let i=0; i<numCarriers; i++) {
+             carriers.electrons.push({ x: Math.random() * (width/2), vx: 0, id: i });
+             carriers.holes.push({ x: (width/2) + Math.random() * (width/2), vx: 0, id: i + 2000 });
+        }
+    }
+    return carriers;
+};
+
+// دالة التحريك (Animation Logic)
+export const animate = (deviceType, deviceState, params, dt, width) => {
+    if (!['gunn', 'impatt', 'trapatt', 'tunnel'].includes(deviceType)) {
+        return deviceState;
+    }
+
+    let E_field = [];
+    let junctions = [];
+    
+    if (deviceType === 'gunn') {
+        junctions = [0, width]; 
+        // Note: Using params.L from new input structure
+        const L = params.L || 10;
+        const V = params.V || 12;
+        const appliedVoltage = V;
+        const avgField = appliedVoltage / (L * 1e-4); 
+        E_field = [avgField, avgField, avgField]; 
+        
+        const Vth = params.Vth || 3.2; // kV/cm
+        
+        // Threshold check (approximate)
+        if (avgField > Vth * 1000) {
+             E_field.push(avgField * 3); 
+        }
+
+    } else if (deviceType === 'impatt') {
+        junctions = [width * 0.2, width * 0.4]; 
+        E_field = [1000, 200000, 5000]; 
+    } else if (deviceType === 'trapatt') {
+        junctions = [width * 0.1, width * 0.9];
+        E_field = [500, 1000, 500];
+    } else if (deviceType === 'tunnel') {
+        junctions = [width * 0.48, width * 0.52]; 
+        E_field = [100, 100000, 100]; 
+    } else {
+        junctions = [width/2, width/2];
+        E_field = [0,0,0];
+    }
+
+    deviceState.carriers.electrons.forEach(electron => {
+        let E = 0;
+        if (deviceType === 'gunn') {
+             if (E_field.length > 3) {
+                 const timeFactor = (Date.now() / 1000) % 1; 
+                 const domainPos = timeFactor * width;
+                 if (Math.abs(electron.x - domainPos) < width*0.1) E = E_field[3];
+                 else E = E_field[0];
+             } else {
+                 E = E_field[0];
+             }
+        } else {
+             if (electron.x < junctions[0]) E = E_field[0];
+             else if (electron.x < junctions[1]) E = E_field[1];
+             else E = E_field[2];
+        }
+
+        let mu = params.mu_n || 1000;
+        if (deviceType === 'gunn' && Math.abs(E) > 3500) mu = mu / 5; 
+
+        let v = -mu * E * 0.0001; 
+
+        let randomJitter = (Math.random() - 0.5) * VISUAL_DIFFUSION_SCALE * dt * 100;
+        
+        if (v > 200) v = 200;
+        if (v < -200) v = -200;
+
+        electron.x += (v * dt) + randomJitter;
+
+        if (electron.x > width) electron.x = 0;
+        if (electron.x < 0) electron.x = width;
+        
+        // TUNNEL Diode Logic with correct param name (Vbias)
+        if (deviceType === 'tunnel') {
+             const voltage = params.Vbias || params.V || 0;
+             if (Math.abs(electron.x - width/2) < 5 && voltage > 0) {
+                 if (Math.random() < 0.1) electron.x = width/2 + 10; 
+             }
+        }
+    });
+
+    deviceState.carriers.holes.forEach(hole => {
+        let E = 0;
+        if (hole.x < junctions[0]) E = E_field[0];
+        else if (hole.x < junctions[1]) E = E_field[1];
+        else E = E_field[2];
+
+        let v = (params.mu_p || 400) * E * 0.0001;
+
+        let randomJitter = (Math.random() - 0.5) * VISUAL_DIFFUSION_SCALE * dt * 100;
+        hole.x += (v * dt) + randomJitter;
+
+        if (hole.x > width) hole.x = 0;
+        if (hole.x < 0) hole.x = width;
+    });
+
+    if (deviceType === 'impatt' || deviceType === 'trapatt') {
+         const avalancheRegionStart = junctions[0];
+         const avalancheRegionEnd = junctions[1];
+         let newElectrons = [];
+         let newHoles = [];
+
+         let multiplicationFactor = 1;
+         // Check for breakdown voltage param (Vd or Vb or V)
+         const voltage = params.Vd || params.Vb || params.V || 0;
+         
+         if (voltage > 50) multiplicationFactor = 1.05;
+
+         if (multiplicationFactor > 1) {
+             deviceState.carriers.electrons.forEach(e => {
+                 if (e.x > avalancheRegionStart && e.x < avalancheRegionEnd) {
+                     if (Math.random() < 0.02) { 
+                         const offset = (Math.random() - 0.5) * 10;
+                         newElectrons.push({ x: e.x + offset, vx: 0, id: Date.now() + Math.random() });
+                         newHoles.push({ x: e.x + offset, vx: 0, id: Date.now() + Math.random()+1 });
+                     }
+                 }
+             });
+         }
+         
+         if (deviceState.carriers.electrons.length < 200) {
+             deviceState.carriers.electrons.push(...newElectrons);
+             deviceState.carriers.holes.push(...newHoles);
+         }
+         
+         if (deviceState.carriers.electrons.length > 250) {
+             deviceState.carriers.electrons.splice(0, 10);
+             deviceState.carriers.holes.splice(0, 10);
+         }
+    }
+
+    return deviceState;
+};
