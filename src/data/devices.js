@@ -403,87 +403,215 @@ export const devices = [
            };
        }
      },
-       {
-         id: 'twt', 
-         name: 'Traveling Wave Tube', 
-         type: 'O-TYPE',
-         params: [
-           { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 10, def: 3, step: 0.1 },
-           { id: 'Io', label: 'Beam Current', unit: 'mA', min: 10, max: 500, def: 100, step: 10 },
-           { id: 'atten', label: 'Attenuator (0=OFF, 1=ON)', unit: '', min: 0, max: 1, def: 1, step: 1 },
-           { id: 'Vi', label: 'Input Signal', unit: 'V', min: 0, max: 100, def: 20, step: 1 },
-           { id: 'N', label: 'Helix Length', unit: 'λ', min: 10, max: 100, def: 40, step: 1 },
-           { id: 'C', label: 'Pierce Parameter', unit: '', min: 0.01, max: 0.5, def: 0.1, step: 0.01 }
-         ],
-         desc: 'Broadband amplifier using slow-wave structures for continuous interaction.',
-         theory: {
-           plain: 'Gain: G = (47.3 × C × N)dB, Pierce Param: C = (I₀Z₀/4V₀)^(1/3), Phase Velocity: vₚ = c/n_helix',
-           latex: 'G = 47.3CN \\text{ dB}, \\quad C = \\left(\\frac{I_0 Z_0}{4V_0}\\right)^{1/3}, \\quad v_p = \\frac{c}{n}'
-         },
-         explanation: [
-             {
-                 title: "The Slow-Wave Structure",
-                 text: "Since electrons travel at v0 < c, interaction is impossible in a smooth waveguide. A Helix structure is used to reduce the axial phase velocity of the RF wave to match the beam velocity:",
-                 eq: "v_p \\approx c \\sin \\psi"
-             },
-             {
-                 title: "Pierce Gain Theory",
-                 text: "Interaction is described by the Pierce Gain Parameter C. The total power gain accounts for launching losses (-9.54 dB) and the growing wave:",
-                 eq: "G_{dB} \\approx -9.54 + 47.3 N C"
-             }
-         ],
-         equations: (p) => {
-             const G = 47.3 * (p.C || 0.1) * (p.N || 40);
-             return {
-               'Small-Signal Gain': { value: G.toFixed(1), unit: 'dB', latex: 'G' },
-               'Pierce Parameter': { value: (p.C || 0.1).toFixed(3), unit: '', latex: 'C' },
-               'Beam Velocity': { value: (Math.sqrt(2 * 1.759e11 * (p.Vo || 3) * 1000) * 1e-6).toFixed(2), unit: '10⁶ m/s', latex: 'v_0' },
-               'Output Power': { value: ((p.Vi || 20) * Math.pow(10, G / 20)).toFixed(2), unit: 'W', latex: 'P_{out}' }
-             };
-         },
-         calculate: (params, t) => {
-             const G_db = -9.54 + 47.3 * params.N * params.C;
-             const G = Math.pow(10, G_db/10);
-             const Pout = params.Vi * G; 
-             return {
-                 current: params.Io,
-                 voltage: params.Vo * 1000,
-                 power: Pout
-             };
-         }
+      {
+       id: 'twt', 
+       name: 'Traveling Wave Tube', 
+       type: 'O-TYPE',
+       params: [
+         { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 20, def: 3, step: 0.1 },
+         { id: 'Io', label: 'Beam Current', unit: 'mA', min: 1, max: 500, def: 30, step: 1 },
+         { id: 'Zo', label: 'Helix Impedance', unit: 'Ω', min: 5, max: 100, def: 10, step: 1 }, // Vital for C calc
+         { id: 'Vi', label: 'Input Signal', unit: 'mW', min: 0.1, max: 1000, def: 10, step: 0.1 }, // mW is more realistic input
+         { id: 'N', label: 'Circuit Length', unit: 'λ', min: 10, max: 100, def: 50, step: 1 },
+         { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 50, def: 10, step: 0.1 }
+       ],
+       desc: 'Broadband amplifier using continuous interaction between electron beam and slow-wave structure.',
+       theory: {
+         plain: 'Gain Param: C = (I₀Z₀/4V₀)^(1/3), Total Gain: G_dB = -9.54 + 47.3NC, Output: P_out < P_dc',
+         latex: 'C = \\left(\\frac{I_0 Z_0}{4V_0}\\right)^{1/3}, \\quad G_{dB} \\approx -9.54 + 47.3 N C'
        },
-       
-      { 
-         id: 'obwo', 
-         name: 'O-Type BWO', 
-         type: 'O-TYPE', 
-         params: [
-           { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 20, def: 5, step: 0.1 },
-           { id: 'Io', label: 'Beam Current', unit: 'mA', min: 10, max: 500, def: 100, step: 10 },
-           { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 100, def: 10, step: 0.5 },
-           { id: 'L', label: 'Structure Length', unit: 'cm', min: 5, max: 30, def: 15, step: 0.5 }
-         ],
-         desc: 'O-Type Backward Wave Oscillator. Kinetic energy conversion with continuous bunching along the tube axis.',
-         theory: { 
-           plain: 'Beam Velocity: v = √(2eV/m)', 
-           latex: 'v_e = \\sqrt{\\frac{2e V_{0}}{m}} \\approx v_{phase}' 
-         },
-         explanation: [
-           { 
-               title: "O-Type Bunching", 
-               text: "Electrons enter with constant velocity. The backward wave's field modulates their velocity, causing fast electrons to catch up with slower ones, forming 'space charge bunches'."
+       explanation: [
+           {
+               title: "Slow-Wave Structure (Helix)",
+               text: "Electrons travel at v0 < c. To ensure interaction, a Helix is used to reduce the axial phase velocity of the RF wave to nearly match the beam velocity (Synchronism).",
+               eq: "v_p \\approx v_0"
            },
-           { 
-               title: "Backward Wave", 
-               text: "The RF energy travels opposite to the electron beam direction. The interaction initiates near the collector, and the wave grows in amplitude as it travels back towards the gun."
+           {
+               title: "The Four Propagation Constants",
+               text: "The interaction results in 4 waves: 1. A growing forward wave (dominates gain), 2. A decaying forward wave, 3. A non-growing forward wave, 4. A backward wave (suppressed by attenuator).",
+               eq: "\\delta_1 = \\frac{\\sqrt{3}}{2} - j\\frac{1}{2} \\quad (Growing)"
+           },
+           {
+               title: "Gain & Attenuation",
+               text: "The theoretical gain is massive, but 'Launching Loss' (-9.54 dB) occurs because the input power splits into the three forward modes. Only the growing mode contributes to the final output."
            }
-         ],
-         equations: (p) => ({
-           'Beam Velocity': { value: (0.593 * Math.sqrt((p.Vo || 5)*1000)).toFixed(2), unit: 'km/s', latex: 'v_e' },
-           'Approx Output Power': { value: (((p.Vo || 5) * (p.Io || 100)) * 0.15).toFixed(1), unit: 'W', latex: 'P_{out}' }
-         }),
-         calculate: (params, t) => { return { current: 50, voltage: params.Vo * 1000, power: 50 }; }
+       ],
+       equations: (p) => {
+           // Inputs
+           const Vo = (p.Vo || 3) * 1000;
+           const Io = (p.Io || 30) / 1000;
+           const Zo = p.Zo || 10;
+           const N = p.N || 50;
+           const Vi_watts = (p.Vi || 10) / 1000;
+
+           // 1. Pierce Gain Parameter C (Eq 9-5-56)
+           // C = ( (Io * Zo) / (4 * Vo) )^(1/3)
+           const C = Math.pow( (Io * Zo) / (4 * Vo), 1/3 );
+
+           // 2. Output Power Gain (Eq 9-5-80)
+           // Ap = -9.54 + 47.3 * N * C
+           // Note: The -9.54 represents the fact that input power splits into 3 waves, 
+           // and only 1/3 (approx -9.54dB voltage wise?) actually grows.
+           const Gain_dB = -9.54 + (47.3 * N * C);
+           
+           // Convert dB to linear
+           const Gain_linear = Math.pow(10, Gain_dB/10);
+
+           // 3. Output Power Calculation
+           const P_dc = Vo * Io;
+           let P_out = Vi_watts * Gain_linear;
+
+           // 4. Saturation Check
+           // TWT efficiency is typically 10-20% without collector depression
+           const max_eff = 0.20; 
+           const P_out_sat = Math.min(P_out, P_dc * max_eff);
+           
+           // Recalculate actual gain if saturated
+           const Final_Gain_dB = 10 * Math.log10(P_out_sat / Vi_watts);
+
+           return {
+             'Pierce Param (C)': { value: C.toFixed(4), unit: '', latex: 'C' },
+             'Theoretical Gain': { value: Gain_dB.toFixed(2), unit: 'dB', latex: 'A_p' },
+             'Saturated Gain': { value: Final_Gain_dB.toFixed(2), unit: 'dB', latex: 'G_{sat}' },
+             'Input Power': { value: (Vi_watts*1000).toFixed(1), unit: 'mW', latex: 'P_{in}' },
+             'Output Power': { value: P_out_sat.toFixed(2), unit: 'W', latex: 'P_{out}' },
+             'Beam Power': { value: P_dc.toFixed(0), unit: 'W', latex: 'P_{dc}' }
+           };
        },
+       calculate: (params, t) => {
+           const Vo = params.Vo * 1000;
+           const Io = params.Io / 1000;
+           const Zo = params.Zo;
+           const N = params.N;
+           const w = 2 * Math.PI * params.f * 1e9;
+
+           // Calculate C dynamically
+           const C = Math.pow( (Io * Zo) / (4 * Vo), 1/3 );
+           
+           // Calculate Growing Wave amplitude factor
+           // The wave grows exponentially as e^(alpha * z)
+           // We simulate the output at the end of the tube
+           const Gain_dB_Total = -9.54 + (47.3 * N * C);
+           const Voltage_Gain = Math.pow(10, Gain_dB_Total/20);
+           
+           // Input Voltage (derived from Power inputs approx)
+           const Vin_rms = Math.sqrt((params.Vi/1000) * 50); // assuming 50ohm system for voltage ref
+           const Vout_rms = Vin_rms * Voltage_Gain;
+
+           // Saturation clamping
+           const V_sat = Vo * 0.5; // Max RF voltage swing limited by Beam V
+           const V_final = Math.min(Vout_rms, V_sat);
+
+           // Phase shift (Total length is N wavelengths)
+           const theta = 2 * Math.PI * N;
+
+           return {
+               // Showing Output Voltage vs Time
+               voltage: V_final * Math.sin(w*t - theta),
+               
+               // Beam current also gets bunched heavily at the end
+               current: (Io*1000) * (1 + 0.8 * Math.min(1, Voltage_Gain/100) * Math.cos(w*t - theta)),
+               
+               // Instantaneous Power Output
+               power: (V_final * V_final / 50) * Math.sin(w*t) // Simplified envelope
+           };
+       }
+     },
+       
+     { 
+       id: 'obwo', 
+       name: 'O-Type BWO (Carcinotron)', 
+       type: 'O-TYPE', 
+       params: [
+         { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 0.5, max: 10, def: 2, step: 0.1 },
+         { id: 'Io', label: 'Beam Current', unit: 'mA', min: 1, max: 200, def: 50, step: 1 },
+         { id: 'L', label: 'Structure Length', unit: 'cm', min: 2, max: 20, def: 10, step: 0.5 },
+         { id: 'p', label: 'Helix Pitch', unit: 'mm', min: 0.5, max: 5, def: 1, step: 0.1 } // Crucial for Freq calc
+       ],
+       desc: 'Voltage-tunable oscillator. Interaction occurs with the backward space harmonic of the slow-wave structure.',
+       theory: { 
+         plain: 'Frequency Tunability: f ∝ √V₀, Start Current: I_st ∝ V₀ / (L³ f³), Efficiency: Low (~10-20%)', 
+         latex: 'f \\approx \\frac{v_0}{p} = \\frac{0.593 \\times 10^6 \\sqrt{V_0}}{p}, \\quad P_{out} = \\eta V_0 I_0' 
+       },
+       explanation: [
+         { 
+             title: "Backward Wave Interaction", 
+             text: "Unlike TWT, the electron beam interacts with a backward space harmonic. The beam travels forward, but the RF energy travels backward (towards the gun). This internal feedback creates oscillation without external cavities."
+         },
+         { 
+             title: "Electronic Tuning", 
+             text: "The oscillation frequency is determined by the beam velocity. Changing the Beam Voltage (Vo) changes the velocity, which forces the tube to oscillate at a new frequency to maintain synchronism. This allows extremely wide bandwidth tuning (e.g., usually an octave)."
+         },
+         {
+             title: "Start-Oscillation Condition",
+             text: "For oscillation to build up, the beam current must exceed a threshold called 'Start Oscillation Current' (Ist). Below this value, the internal feedback is too weak."
+         }
+       ],
+       equations: (p) => {
+           // Physics Constants
+           const Vo = (p.Vo || 2) * 1000;
+           const Io = (p.Io || 50) / 1000;
+           const L = (p.L || 10) / 100;
+           const pitch = (p.p || 1) / 1000;
+           
+           // 1. Beam Velocity
+           const v0 = 0.593e6 * Math.sqrt(Vo);
+           
+           // 2. Frequency Calculation (Approximation for Helix BWO)
+           // Sync condition: Phase velocity of -1 harmonic = Beam velocity
+           // beta_-1 = (2pi/p) - (w/vg) approx... Simplified: f ~= v0 / (2 * pitch) roughly for simulation
+           const f_osc = v0 / (2 * pitch); // Hz
+           
+           // 3. Start Oscillation Current (Approximate relation)
+           // I_st is proportional to Vo / (L^3 * f^3)
+           // Let's assume a baseline constant K
+           const K_st = 2e-7; 
+           const I_start = K_st * Vo / (Math.pow(L, 3) * 10); // Simplified scaling
+           
+           // 4. Power & Efficiency
+           // Efficiency is low in BWOs compared to TWTs
+           const efficiency = 0.15; // 15%
+           const isOscillating = Io > I_start;
+           const P_out = isOscillating ? (Vo * Io * efficiency) : 0;
+
+           return {
+             'Beam Velocity': { value: v0.toExponential(2), unit: 'm/s', latex: 'v_0' },
+             'Oscillation Freq': { value: (f_osc/1e9).toFixed(2), unit: 'GHz', latex: 'f_{osc}' },
+             'Start Current (Est)': { value: (I_start*1000).toFixed(1), unit: 'mA', latex: 'I_{st}' },
+             'Output Power': { value: P_out.toFixed(1), unit: 'W', latex: 'P_{out}' },
+             'Status': { value: isOscillating ? "Oscillating" : "Below Threshold", unit: '', latex: '' }
+           };
+       },
+       calculate: (params, t) => { 
+           // Re-calculate physics for animation
+           const Vo = params.Vo * 1000;
+           const pitch = (params.p || 1) / 1000;
+           const v0 = 0.593e6 * Math.sqrt(Vo);
+           const f = v0 / (2 * pitch);
+           const w = 2 * Math.PI * f;
+           
+           // Wave travels BACKWARDS (from collector z=L to gun z=0)
+           // Amplitude is highest at z=0 (Output)
+           const output_amp = (params.Io/1000) * Vo * 0.15; // Power based
+           
+           // Current bunching grows as beam moves FORWARD (z=0 to z=L)
+           
+           return { 
+               // RF Output is taken at the gun end
+               voltage: output_amp * Math.sin(w*t), 
+               
+               // Visualizing the signal on the line (Backward Wave)
+               // This is effectively the field at the gun
+               output_voltage: output_amp * Math.sin(w*t),
+
+               // Beam Current: modulated
+               current: params.Io * (1 + 0.5 * Math.sin(w*t)),
+               
+               // Power Output
+               power: output_amp * 0.5
+           }; 
+       }
+     },
        
        // --- CROSSED-FIELD (M-TYPE) ---
        { 
