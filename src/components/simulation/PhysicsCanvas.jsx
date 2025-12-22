@@ -312,7 +312,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               drawElectron(p.x, p.y, 3, color);
           });
       }
-       // === MULTI-CAVITY KLYSTRON (ENHANCED PHYSICS) ===
+      // === MULTI-CAVITY KLYSTRON (UPDATED VISUALS) ===
       else if (deviceId === 'klystronMulti') {
           // --- 1. Physics Calculations ---
           const Vo_kv = inputs.Vo || 15;
@@ -322,49 +322,38 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           const omega_real = 2 * Math.PI * f_GHz * 1e9;
           const d_mm = inputs.d || 3; 
           const d_meters = d_mm / 1000;
-          const Vi_real = inputs.Vi || 10; // Input is usually small in multi-cavity
+          const Vi_real = inputs.Vi || 10; 
 
-          // Coupling Coefficient Beta
+          // Coupling
           const transit_angle_rad = (omega_real * d_meters) / v0_real;
           let beta = 1.0;
           const half_theta = transit_angle_rad / 2;
           if (Math.abs(half_theta) > 0.0001) beta = Math.sin(half_theta) / half_theta;
 
-          // Gain Calculation per Stage
+          // Gain Setup
           const gainDB_stage = inputs.G || 15;
-          const gainLinear_stage = Math.pow(10, gainDB_stage / 20); // Voltage gain
+          const gainLinear_stage = Math.pow(10, gainDB_stage / 20); 
           
-          // Geometry & Layout
+          // Layout
           const N = Math.floor(inputs.N || 4);
-          
-          // Optimum Drift Length (L_opt) logic for visual spacing
-          // Real L_opt decreases as voltage increases (Space Charge dominated)
-          // We'll use a visual spacing that looks proportional
           const L_stage_cm = inputs.L || 5; 
           
           let px_per_cm = 50; 
           const buncherX_start = width * 0.15;
           const total_L_cm = (N - 1) * L_stage_cm;
-          
-          // Fit to screen width if too long
           const available_width = width - buncherX_start - 100;
-          if (total_L_cm * px_per_cm > available_width) {
-             px_per_cm = available_width / total_L_cm;
-          }
-          if (px_per_cm < 20) px_per_cm = 20; // Min spacing
+          if (total_L_cm * px_per_cm > available_width) px_per_cm = available_width / total_L_cm;
+          if (px_per_cm < 20) px_per_cm = 20;
 
           const cavityPositions = [];
-          for (let i = 0; i < N; i++) {
-              cavityPositions.push(buncherX_start + i * (L_stage_cm * px_per_cm));
-          }
+          for (let i = 0; i < N; i++) cavityPositions.push(buncherX_start + i * (L_stage_cm * px_per_cm));
           
           const catcherX = cavityPositions[N - 1]; 
           const collectorX = catcherX + 80;
           const totalLength = collectorX + 60;
           
-          // Visual Speed Base
           const v_pixel_base = 4.0 * Math.pow(Vo_kv/10, 0.4); 
-          const omega_visual = 0.15 * f_GHz; // Adjusted for multi-stage visibility
+          const omega_visual = 0.15 * f_GHz; 
 
           // --- 2. Particle Logic ---
           if (running) {
@@ -386,74 +375,67 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           if (running) {
              particlesRef.current.forEach((p, i) => {
-               // Interaction Loop across all cavities
                for (let idx = 0; idx < N; idx++) {
                    const cavX = cavityPositions[idx];
                    
-                   // Check if particle is passing a cavity gap it hasn't passed yet
+                   // Interaction Zone
                    if (p.x >= cavX && p.x < cavX + 20 && p.lastCavityIndex < idx) {
                        const phase = frameRef.current * omega_visual;
-                       
-                       // Phase delay accumulation (approximate for visual coherence)
-                       // Each stage delays phase relative to previous
-                       const stage_phase_delay = idx * (Math.PI / 2); // 90 deg delay common
-                       const local_phase = phase - stage_phase_delay;
-                       
+                       // Add slight phase delay per stage for realism
+                       const local_phase = phase - (idx * Math.PI/2);
                        const sinVal = Math.sin(local_phase);
                        
-                       // Cascaded Gain Logic
-                       // Input Mod Depth at Buncher
+                       // --- NEW LOGIC START ---
+                       // Calculate Real Physics Voltage at this stage
                        let current_RF_Voltage = Vi_real * Math.pow(gainLinear_stage, idx);
                        
-                       // SATURATION: Clamp RF voltage to not exceed ~1.2 * Beam Voltage
-                       // This simulates the saturation physics where V_rf cannot exceed V_beam
-                       if (current_RF_Voltage > 1.2 * Vo_real) {
-                           current_RF_Voltage = 1.2 * Vo_real; 
-                       }
+                       // Physics Saturation Limit (Cannot exceed ~1.2x Beam Voltage)
+                       const saturation_limit = 1.2 * Vo_real;
+                       if (current_RF_Voltage > saturation_limit) current_RF_Voltage = saturation_limit;
                        
-                       // Convert to modulation depth
-                       // depth = (beta * V_rf) / (2 * Vo)
+                       // Physical Modulation Depth (Small number)
                        let mod_depth = (beta * current_RF_Voltage) / (2 * Vo_real);
                        
-                       // Visual scaling factor (needs to be exaggerated for screen)
-                       const visual_scale = 100.0; 
+                       // **VISUAL MAGIC HERE:**
+                       // Use a very high sensitivity factor to boost small signals (Input)
+                       // Use tanh to softly clamp large signals (Output) so they don't look crazy
+                       const visual_sensitivity = 800.0; // Increased massively to show input effect
                        
-                       // Apply Modulation
-                       // If already modulated, we ADD to the velocity perturbation (Cascading)
-                       // v_new = v_old * (1 + delta)
-                       let delta_v = mod_depth * visual_scale * sinVal;
+                       // This curve makes 0.001 look like 0.2, but makes 1.0 look like 0.8
+                       let visual_impact = Math.tanh(mod_depth * visual_sensitivity); 
                        
-                       // Damping/Debunching between stages (Space Charge visual)
-                       // If we don't dampen, particles explode. Real beams have debunching.
-                       if (idx > 0) delta_v *= 0.8; 
+                       // Apply to velocity (Max visual change limited to +/- 40%)
+                       let delta_v = visual_impact * sinVal * 0.4;
                        
+                       // Space Charge Debunching simulation (dampen slightly if not reinforced)
+                       if (idx > 0 && Math.abs(sinVal) < 0.1) delta_v *= 0.9;
+
+                       // Apply
                        let new_vx = p.vx + (p.base_vx * delta_v);
                        
-                       // Safety Clamps
+                       // Hard Clamps for simulation stability
                        if (new_vx < p.base_vx * 0.2) new_vx = p.base_vx * 0.2;
                        if (new_vx > p.base_vx * 3.0) new_vx = p.base_vx * 3.0;
 
                        p.vx = new_vx;
                        p.lastCavityIndex = idx;
-                       
-                       // Update color based on speed relative to DC speed
+                       // --- NEW LOGIC END ---
+
+                       // Color Logic
                        const speed_ratio = p.vx / p.base_vx;
-                       if (speed_ratio > 1.1) p.type = 'fast'; 
-                       else if (speed_ratio < 0.9) p.type = 'slow'; 
+                       if (speed_ratio > 1.05) p.type = 'fast'; 
+                       else if (speed_ratio < 0.95) p.type = 'slow'; 
                        else p.type = 'neutral';
                    }
                }
 
-               // Catcher Energy Extraction (Output)
-               // Particles slow down at the last cavity if they are correctly phased
+               // Catcher Deceleration
                if (p.x > catcherX + 10 && p.x < catcherX + 30) {
-                   // Visual deceleration
                    p.vx = p.vx * 0.95; 
                }
 
                p.x += p.vx * timeScale;
                
-               // Recycle
                if (p.x > totalLength + 50) {
                  particlesRef.current[i] = { 
                      x: 0 - Math.random() * 10, 
@@ -472,58 +454,39 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           drawMetal(0, cy + 40, totalLength, 20, '#334155');
           
           cavityPositions.forEach((cavX, idx) => {
-             // Dynamic Label & Color
-             let label = "";
-             let color = "#94a3b8"; // Gray default
-             let glow = false;
-
-             if (idx === 0) { 
-                 label = "IN"; 
-                 color = "#60a5fa"; // Blue
-             } else if (idx === N - 1) { 
-                 label = "OUT"; 
-                 color = "#f43f5e"; // Red
-                 glow = true;
-             } else { 
-                 label = `${idx}`; 
-             }
+             let label = idx === 0 ? "IN" : (idx === N - 1 ? "OUT" : `${idx}`);
+             let color = idx === 0 ? "#60a5fa" : (idx === N - 1 ? "#f43f5e" : "#94a3b8");
              
-             // Draw Cavity
-             if (glow) {
-                 // Output Glow Intensity depends on Saturation level
-                 // We can estimate saturation by checking if N * Gain > some threshold
-                 const total_gain_db = (N-1) * gainDB_stage;
-                 const intensity = Math.min(1, total_gain_db / 60); // Max glow at 60dB
-                 
-                 ctx.shadowBlur = 20 * intensity;
+             // Dynamic Glow based on signal strength
+             // Using tanh again to map signal strength to opacity
+             const stage_voltage = Vi_real * Math.pow(gainLinear_stage, idx);
+             const glow_intensity = Math.tanh(stage_voltage / (Vo_real * 0.1)); // Glows when V_rf > 10% of V_beam
+             
+             if (glow_intensity > 0.1) {
+                 ctx.shadowBlur = 15 * glow_intensity;
                  ctx.shadowColor = color;
              }
+             
              drawCavity(cavX, cy, 40, 70, label, color);
-             ctx.shadowBlur = 0; // Reset
+             ctx.shadowBlur = 0;
           });
 
-          // Collector
-          ctx.fillStyle = '#1e293b'; 
-          ctx.fillRect(collectorX, cy - 50, 50, 100);
-          ctx.fillStyle = '#fff'; 
-          ctx.font = '10px monospace'; 
-          ctx.fillText('COLLECTOR', collectorX, cy);
+          ctx.fillStyle = '#1e293b'; ctx.fillRect(collectorX, cy - 50, 50, 100);
+          ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('COLLECTOR', collectorX, cy);
           
-          // Info Text
+          // Info HUD
           const total_gain_db = ((N-1) * gainDB_stage).toFixed(1);
           ctx.fillStyle = '#fff';
           ctx.font = '14px monospace';
-          ctx.fillText(`Total Gain: ~${total_gain_db} dB`, 20, 30);
-          
-          if (total_gain_db > 50) {
-              ctx.fillStyle = '#facc15';
-              ctx.fillText("HIGH GAIN - SATURATION LIKELY", 20, 50);
-          }
+          ctx.fillText(`Gain: ${total_gain_db} dB`, 20, 30);
+          ctx.font = '12px monospace';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(`(Visuals Enhanced for Visibility)`, 20, 45);
 
           particlesRef.current.forEach(p => {
              let color = '#60a5fa'; 
              if (p.type === 'fast') color = '#ef4444'; 
-             if (p.type === 'slow') color = '#e2e8f0'; 
+             if (p.type === 'slow') color = '#fbbf24'; 
              drawElectron(p.x, p.y, 2.5, color);
           });
       }
