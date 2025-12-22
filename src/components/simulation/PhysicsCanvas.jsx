@@ -356,14 +356,29 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           const omega_visual = 0.15 * f_GHz; 
 
           // --- 2. Particle Logic ---
+         // --- 2. Particle Logic (Dynamic Density) ---
           if (running) {
-             const multiMaxParticles = 5000 * particleDensity; 
+             // معادلة الكثافة:
+             // كل ما التيار يزيد، نزود الحد الأقصى وسرعة الضخ
+             // بنعمل Normalization على 100mA كقيمة متوسطة
+             const current_Io = inputs.Io || 100;
+             
+             // Scale Factor: 
+             // لو التيار 500mA الكثافة تزيد 5 أضعاف
+             // بس بنحط سقف (Math.min) عشان المتصفح ما يهنجش لو التيار عالي جداً
+             const densityFactor = Math.min(8.0, current_Io / 50.0); 
+             
+             const multiMaxParticles = 1000 * densityFactor; 
+             
              if (particlesRef.current.length < multiMaxParticles) {
-                 const injectionCount = Math.ceil(particleDensity * 2);
+                 // Injection Rate:
+                 // لازم نضخ عدد أكبر في كل فريم عشان نحافظ على التدفق العالي
+                 const injectionCount = Math.ceil(2 * densityFactor);
+                 
                  for(let j=0; j<injectionCount; j++){
                      particlesRef.current.push({ 
                        x: 0 - Math.random() * 10, 
-                       y: cy + (Math.random() - 0.5) * 20, 
+                       y: cy + (Math.random() - 0.5) * 20, // Spread Y slightly with current logic if needed
                        vx: v_pixel_base, 
                        base_vx: v_pixel_base, 
                        type: 'neutral', 
