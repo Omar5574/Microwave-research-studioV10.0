@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai"; // تأكد من وجود هذا الاستيراد إذا كنت تستخدمه
+
 
 // Data & Components imports
 import { devices } from './data/devices';
@@ -11,14 +11,13 @@ import { WaveformDisplay } from './components/simulation/WaveformDisplay';
 import { FFTDisplay } from './components/simulation/FFTDisplay';
 import { DeepExplanation } from './components/panels/DeepExplanation';
 import ExpertQuery from './components/features/ExpertQuery';
-import { Header } from './components/layout/Header'; // تأكد من استيراد Header
+import { Header } from './components/layout/Header'; 
 
 export default function App() {
   // === TABS & UI STATE ===
   const [activeTab, setActiveTab] = useState("simulation"); 
   const [showQuickInfo, setShowQuickInfo] = useState(false);
-  
-  // *** NEW: حالة القائمة الجانبية للموبايل ***
+  // *** NEW: Mobile Side Menu Status ***
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // ========== SIMULATION CORE STATES ==========
