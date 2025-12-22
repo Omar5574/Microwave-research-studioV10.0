@@ -677,164 +677,213 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               drawElectron(p.x, p.y, radius, color);
           });
       }
-        // === TWT ===
-        else if (deviceId === 'twt') {
-            const helixStart = 80;
-            const helixEnd = width - 80;
-            const totalLen = helixEnd - helixStart;
-            
-            const attenStart = helixStart + (totalLen * 0.45); 
-            const attenEnd = attenStart + 40; 
-            
-            const Vo = inputs.Vo || 3; 
-            const initialVelocity = Math.sqrt(Vo) * 2.5; 
-  
-            const useAttenuator = (inputs.atten !== undefined ? inputs.atten > 0.5 : true);
-  
-            const Vi = inputs.Vi || 10;
-            const tightness = (Vi / 20) * 1.0; 
-  
-            if (running) {
-               const twtMaxParticles = 4500; 
-               if (particlesRef.current.length < twtMaxParticles) {
-                  const injectionCount = 8; 
-                  for(let j=0; j<injectionCount; j++){
-                      particlesRef.current.push({ 
-                          x: 20 - Math.random(), 
-                          y: cy + (Math.random() - 0.5) * 4, 
-                          vx: initialVelocity,      
-                          type: 'blue' 
-                      });
-                  }
-               }
-            }
-  
-            if (running) {
-               particlesRef.current.forEach((p, i) => {
-                  
-                  if (p.x < helixStart) {
-                      p.vx = initialVelocity; 
-                      p.type = 'blue';
-                  }
-                  else if (p.x >= helixStart && p.x < helixEnd) {
-                      
-                      const inAttenZone = (p.x >= attenStart && p.x <= attenEnd);
-                      
-                      const k = 0.15; 
-                      const w = 0.25; 
-                      const wavePhase = (p.x * k) - (frameRef.current * w);
-                      
-                      let amplitude = 0;
-                      
-                      if (useAttenuator && inAttenZone) {
-                          amplitude = 0; 
-                      } else {
-                          let progress = (p.x - helixStart) / totalLen;
-                          
-                          if (useAttenuator && p.x > attenEnd) {
-                               progress = (p.x - attenEnd) / (helixEnd - attenEnd);
-                               amplitude = 2 + Math.exp(progress * 2.5);
-                          } else {
-                               amplitude = 1 + Math.exp(progress * 3.0);
-                          }
-                      }
-  
-                      const rf_field = Math.sin(wavePhase);
-                      
-                      if (amplitude > 0) {
-                          let force = rf_field * amplitude * tightness;
-                          if (force > 0) force *= 2.0; 
-                          else force *= 1.2;
-  
-                          p.vx = initialVelocity + (force * 2);
-                      }
-  
-                      const speedRatio = p.vx / initialVelocity;
-  
-                      if (speedRatio < 0.96) p.type = 'white'; 
-                      else if (speedRatio > 1.05) p.type = 'red';   
-                      else p.type = 'blue';
-                  } 
-  
-                  p.x += p.vx * timeScale;
-                  
-                  if (p.x > width + 50) {
-                     particlesRef.current[i] = { 
-                        x: 20, y: cy + (Math.random() - 0.5) * 4, 
-                        vx: initialVelocity, type: 'blue'
-                     };
-                  }
-               });
-            }
-  
-            ctx.fillStyle = '#60a5fa'; ctx.fillRect(10, cy - 15, 30, 30);
-            ctx.fillStyle = '#fff'; ctx.fillText("GUN", 15, cy - 20);
-  
-            const magSpace = 25;
-            for(let m = helixStart - 10; m < helixEnd + 10; m+=magSpace) {
-               const isN = Math.floor((m/magSpace)%2)===0;
-               ctx.fillStyle = isN ? '#ef4444' : '#3b82f6'; 
-               ctx.fillRect(m, cy - 45, magSpace-2, 10); 
-               ctx.fillRect(m, cy + 35, magSpace-2, 10); 
-            }
-  
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#f59e0b'; 
-            ctx.beginPath();
-            const animP = frameRef.current * 0.25; 
-            for (let x = helixStart; x <= helixEnd; x += 2) {
-               let amp = 0;
-               const inAttenZone = (x >= attenStart && x <= attenEnd);
-  
-               if (useAttenuator && inAttenZone) {
-                   amp = 0; 
-               } else {
-                   let progress = (x - helixStart) / totalLen;
-                   if (useAttenuator && x > attenEnd) {
-                       progress = (x - attenEnd) / (helixEnd - attenEnd);
-                       amp = 5 + Math.exp(progress * 2.5) * 2;
-                   } else {
-                       amp = 5 + Math.exp(progress * 2.8) * 3;
-                   }
-               }
-  
-               const y = cy + Math.sin((x * 0.15) - animP) * amp;
-               
-               if (useAttenuator && (Math.abs(x - attenStart) < 2 || Math.abs(x - attenEnd) < 2)) {
-                  ctx.moveTo(x, y);
-               } else if (x===helixStart) {
-                  ctx.moveTo(x, y);
-               } else {
-                  ctx.lineTo(x, y);
-               }
-            }
-            ctx.stroke();
-  
-            if (useAttenuator) {
-                ctx.fillStyle = 'rgba(50, 50, 50, 0.9)'; 
-                ctx.fillRect(attenStart, cy - 12, 40, 24);
-                ctx.fillStyle = '#fff'; ctx.font = "10px monospace"; 
-                ctx.fillText("ATTEN", attenStart + 2, cy - 15);
-            }
-  
-            ctx.fillStyle = '#334155'; ctx.fillRect(width - 60, cy - 25, 40, 50);
-  
-            particlesRef.current.forEach(p => {
-                let color = '#3b82f6'; let r = 2.0;
-                if (p.type === 'white') { 
-                    color = '#ffffff'; r = 3.5; ctx.shadowColor = 'white'; ctx.shadowBlur = 8;
-                } else if (p.type === 'red') { 
-                    color = '#ef4444'; r = 2.2; ctx.shadowBlur = 0;
-                } else {
-                    ctx.shadowBlur = 0;
-                }
-                if(p.x > 0 && p.x < width) {
-                    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
-                }
-                ctx.shadowBlur = 0; 
-            });
-        }
+       // === TRAVELING WAVE TUBE (TWT - Continuous Interaction) ===
+      else if (deviceId === 'twt') {
+          // --- 1. Physics Engine ---
+          const Vo_kv = inputs.Vo || 3;
+          const Vo_real = Vo_kv * 1000;
+          const Io_mA = inputs.Io || 50;
+          
+          // Beam Velocity: v = 0.593 * 10^6 * sqrt(Vo)
+          const v0_real = 5.93e5 * Math.sqrt(Vo_real);
+          
+          const f_GHz = inputs.f || 10;
+          const omega_real = 2 * Math.PI * f_GHz * 1e9;
+          
+          // Pierce Gain Parameter C (Approx 0.05 to 0.1 usually)
+          // C = (Io * Z0 / 4Vo)^(1/3). Let's assume Z0 ~ 50 ohm scaling
+          const Z0 = 50; 
+          const C = Math.pow(( (Io_mA/1000) * Z0 ) / (4 * Vo_real), 1/3);
+          
+          const N_len = inputs.N || 40; // Length in wavelengths
+          
+          // Calculate Gain in dB: -9.54 + 47.3 * N * C
+          const theoretical_gain_db = -9.54 + (47.3 * N_len * C);
+          
+          // --- 2. Visualization Parameters ---
+          const helix_startX = 60;
+          const helix_endX = width - 80;
+          const helix_length_px = helix_endX - helix_startX;
+          
+          // Visual Speed
+          const v_pixel_base = 4.0 * Math.pow(Vo_kv/3, 0.4); 
+          const omega_visual = 0.25; 
+          
+          // Wave Number (k) for visualization
+          // We want to fit N waves into the helix length
+          const k_visual = (N_len * Math.PI * 2) / helix_length_px;
 
+          // --- 3. Particle System (Dynamic Density) ---
+          if (running) {
+             const densityFactor = Math.min(6.0, Io_mA / 20.0);
+             const twtMaxParticles = 1200 * densityFactor; // TWT needs HIGH density to show waves
+             
+             if (particlesRef.current.length < twtMaxParticles) {
+                 const injectionCount = Math.ceil(3 * densityFactor);
+                 for (let j = 0; j < injectionCount; j++) {
+                    particlesRef.current.push({ 
+                      x: 0 - Math.random() * 20, 
+                      y: cy + (Math.random() - 0.5) * 15,
+                      vx: v_pixel_base,
+                      base_vx: v_pixel_base,
+                      type: 'neutral',
+                      bunch_phase: 0 // Track phase for coloring
+                    });
+                 }
+             }
+          }
+
+          if (running) {
+              particlesRef.current.forEach((p, i) => {
+                 // Check if inside Helix
+                 if (p.x >= helix_startX && p.x <= helix_endX) {
+                     // Current Phase of the Wave at particle position
+                     // Wave travels forward: phase = wt - kz
+                     const wave_phase = (frameRef.current * omega_visual) - ((p.x - helix_startX) * k_visual); 
+                     const sinVal = Math.sin(wave_phase);
+
+                     // EXPONENTIAL GROWTH (The TWT Magic)
+                     // Normalized distance (0 to 1)
+                     const z_norm = (p.x - helix_startX) / helix_length_px;
+                     
+                     // Growth Factor: Starts at 1 (Input), Ends high (Output)
+                     // We scale it visually to look good
+                     const growth_power = theoretical_gain_db / 15.0; // Scaling for visual exp
+                     const amplitude_growth = Math.exp(z_norm * Math.min(3.0, growth_power));
+                     
+                     // Force Field (Interaction)
+                     // F ~ E_z * sin(phase)
+                     // Input signal strength
+                     const input_drive = (inputs.Vi || 20) / 500.0; 
+                     const interaction_strength = input_drive * amplitude_growth;
+                     
+                     // Apply Velocity Modulation (Continuous)
+                     // Particles in retarding field (sinVal > 0) slow down -> Give Energy
+                     // Particles in accelerating field (sinVal < 0) speed up -> Take Energy
+                     // NOTE: In TWT physics, bunches form in the retarding field.
+                     
+                     // Visual Tweak: We apply a small accumulated kick
+                     const force = interaction_strength * sinVal * 0.15;
+                     p.vx = p.base_vx * (1 - force); // minus sign to bunch in retarding zone
+                     
+                     // Saturation at end
+                     if (p.vx < p.base_vx * 0.4) p.vx = p.base_vx * 0.4;
+                     if (p.vx > p.base_vx * 2.0) p.vx = p.base_vx * 2.0;
+
+                     // Color Coding based on Interaction
+                     // If slowing down (giving energy) -> Bright/White (Productive)
+                     // If speeding up (taking energy) -> Red/Dark (Lossy)
+                     if (force > 0.02) p.type = 'slow'; // Bunching
+                     else if (force < -0.02) p.type = 'fast'; // Anti-bunching
+                     else p.type = 'neutral';
+                     
+                 } else {
+                     // Outside Helix
+                     if (p.x > helix_endX) p.vx = p.base_vx; // Reset speed at collector
+                     p.type = 'neutral';
+                 }
+
+                 p.x += p.vx * timeScale;
+                 
+                 // Recycle
+                 if (p.x > width + 20) {
+                     particlesRef.current[i] = { 
+                      x: 0 - Math.random() * 20, 
+                      y: cy + (Math.random() - 0.5) * 15,
+                      vx: v_pixel_base,
+                      base_vx: v_pixel_base,
+                      type: 'neutral'
+                    };
+                 }
+              });
+          }
+
+          // --- 4. Drawing ---
+          
+          // 1. Draw Helix Structure (Static Coil)
+          ctx.beginPath();
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 1;
+          const coil_spacing = 8;
+          const helix_amp = 30;
+          
+          for (let x = helix_startX; x <= helix_endX; x += 3) {
+              const coil_phase = (x - helix_startX) / coil_spacing * Math.PI * 2;
+              // Draw top and bottom parts of helix to look 3D-ish
+              const y_coil = cy + Math.cos(coil_phase) * helix_amp;
+              // Simple dotted line effect for back of coil? No, simple sine is cleaner
+              if (x === helix_startX) ctx.moveTo(x, y_coil);
+              else ctx.lineTo(x, y_coil);
+          }
+          ctx.stroke();
+
+          // 2. Draw The "RF Field Wave" (Growing Amplitude)
+          // This visualizes the Electric Field growing along the tube
+          ctx.beginPath();
+          
+          // Dynamic Gradient: Blue (Input) -> Red (Output)
+          const gradient = ctx.createLinearGradient(helix_startX, cy, helix_endX, cy);
+          gradient.addColorStop(0, "rgba(96, 165, 250, 0.2)"); // Weak Blue
+          gradient.addColorStop(0.5, "rgba(167, 139, 250, 0.4)"); // Purple
+          gradient.addColorStop(1, "rgba(244, 63, 94, 0.8)");  // Strong Red
+          
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = 2;
+          
+          // Draw the growing envelope sine wave
+          for (let x = helix_startX; x <= helix_endX; x += 2) {
+             const z_norm = (x - helix_startX) / helix_length_px;
+             const growth = Math.exp(z_norm * 2.5); // Visual growth curve
+             const wave_phase = (frameRef.current * omega_visual) - ((x - helix_startX) * k_visual);
+             
+             const input_amp = (inputs.Vi || 20) / 20.0; // Base amplitude in pixels
+             const y_wave = cy - (Math.sin(wave_phase) * helix_amp * 0.8 * Math.min(1.0, growth * input_amp * 0.1));
+             
+             if (x === helix_startX) ctx.moveTo(x, y_wave);
+             else ctx.lineTo(x, y_wave);
+          }
+          ctx.stroke();
+          
+          // Attenuator (The lossy material in the middle)
+          const attenX = helix_startX + helix_length_px * 0.4;
+          ctx.fillStyle = "rgba(71, 85, 105, 0.5)";
+          drawMetal(attenX, cy - 35, 40, 70, '#334155'); // Just a visual block
+          ctx.fillStyle = "#cbd5e1";
+          ctx.font = "10px monospace";
+          ctx.fillText("ATTENUATOR", attenX, cy - 40);
+
+          // Collector
+          ctx.fillStyle = '#1e293b'; 
+          ctx.fillRect(helix_endX + 10, cy - 40, 40, 80);
+          ctx.fillStyle = '#fff'; 
+          ctx.font = '10px monospace'; 
+          ctx.fillText('COLLECTOR', helix_endX + 10, cy);
+
+          // HUD Info
+          ctx.fillStyle = '#fff';
+          ctx.font = '14px monospace';
+          ctx.textAlign = 'left';
+          ctx.fillText(`Gain Param (C): ${C.toFixed(3)}`, 20, 30);
+          ctx.fillText(`Theo. Gain: ~${theoretical_gain_db.toFixed(1)} dB`, 20, 50);
+
+          // Draw Particles
+          particlesRef.current.forEach(p => {
+              let color = '#60a5fa'; // Neutral
+              let radius = 2.5;
+
+              if (p.x >= helix_startX && p.x <= helix_endX) {
+                  // If bunched (slow type), make them prominent
+                  if (p.type === 'slow') { 
+                      color = '#ffffff'; // White for the "bunch"
+                      radius = 3; 
+                  } else if (p.type === 'fast') {
+                      color = '#ef4444'; // Red for the accelerated ones (anti-bunch)
+                      radius = 2;
+                  }
+              }
+              drawElectron(p.x, p.y, radius, color);
+          });
+      }
         // === O-BWO ===
         else if (deviceId === 'obwo') {
              const structStart = 100;
