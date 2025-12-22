@@ -1,4 +1,3 @@
-// src/components/layout/Header.jsx
 import React from 'react';
 
 export function Header({ 
@@ -7,12 +6,12 @@ export function Header({
   timeScale, setTimeScale,
   running, setRunning,
   onChatOpen,
-  onMenuToggle // New prop for menu toggle
+  onMenuToggle 
 }) {
   return (
     <header className="h-16 border-b border-slate-800 bg-gradient-to-r from-[#0a0a0f] to-[#0f1115] flex items-center justify-between px-4 md:px-6 z-20 shadow-lg shrink-0">
       <div className="flex items-center gap-3">
-        {/* Mobile Menu Button (Hamburger) */}
+        {/* زر القائمة للموبايل فقط */}
         <button 
           onClick={onMenuToggle}
           className="md:hidden text-slate-400 hover:text-white p-1"
@@ -23,7 +22,7 @@ export function Header({
         <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white shadow-xl text-lg md:text-xl">µW</div>
         <div>
           <h1 className="text-sm md:text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-             <span className="md:hidden">MRS v9.4</span> {/* Short name for mobile */}
+             <span className="md:hidden">MRS v9.4</span>
              <span className="hidden md:inline">Microwave Research Studio</span>
           </h1>
           <div className="hidden md:block text-[10px] text-slate-500 font-mono">V9.4 REFACTORED</div>
@@ -31,7 +30,7 @@ export function Header({
       </div>
       
       <div className="flex items-center gap-2 md:gap-3">
-        {/* Tab Switcher - Compact on mobile */}
+        {/* Tab Switcher */}
         <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
           <button 
             onClick={() => setActiveTab('simulation')}
@@ -51,7 +50,7 @@ export function Header({
           </button>
         </div>
 
-        {/* Fidelity & TimeScale - Hidden on Mobile */}
+        {/* Fidelity - Hidden on Mobile */}
         <div className="hidden lg:flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Fidelity</span>
           <select 
@@ -65,6 +64,7 @@ export function Header({
           </select>
         </div>
 
+        {/* Time Scale - Hidden on Mobile */}
         <div className="hidden lg:flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Time</span>
           <input 
@@ -78,7 +78,7 @@ export function Header({
           />
         </div>
 
-        {/* Chat Button - Compact */}
+        {/* Chat Button */}
         <button 
           onClick={onChatOpen}
           className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-bold transition-all shadow-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 text-xs md:text-sm"
@@ -87,7 +87,7 @@ export function Header({
           <span className="hidden md:inline">Ask AI</span>
         </button>
 
-        {/* Status & Control - Compact */}
+        {/* Play/Pause Button */}
         <button 
           onClick={() => setRunning(!running)} 
           className={`w-8 h-8 md:w-auto md:px-5 md:py-2 flex items-center justify-center rounded-lg font-bold transition-all shadow-lg text-xs ${
