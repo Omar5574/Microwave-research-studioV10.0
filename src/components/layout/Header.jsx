@@ -7,12 +7,12 @@ export function Header({
   timeScale, setTimeScale,
   running, setRunning,
   onChatOpen,
-  onMenuToggle
+  onMenuToggle // New prop for menu toggle
 }) {
   return (
     <header className="h-16 border-b border-slate-800 bg-gradient-to-r from-[#0a0a0f] to-[#0f1115] flex items-center justify-between px-4 md:px-6 z-20 shadow-lg shrink-0">
       <div className="flex items-center gap-3">
-        {/* A button for Mobile*/}
+        {/* Mobile Menu Button (Hamburger) */}
         <button 
           onClick={onMenuToggle}
           className="md:hidden text-slate-400 hover:text-white p-1"
@@ -23,7 +23,7 @@ export function Header({
         <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white shadow-xl text-lg md:text-xl">µW</div>
         <div>
           <h1 className="text-sm md:text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-             <span className="md:hidden">MRS v9.4</span> {/* اسم مختصر للموبايل */}
+             <span className="md:hidden">MRS v9.4</span> {/* Short name for mobile */}
              <span className="hidden md:inline">Microwave Research Studio</span>
           </h1>
           <div className="hidden md:block text-[10px] text-slate-500 font-mono">V9.4 REFACTORED</div>
