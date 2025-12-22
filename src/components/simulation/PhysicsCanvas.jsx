@@ -899,125 +899,192 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               drawElectron(p.x, p.y, radius, color);
           });
       }
-        // === O-BWO ===
-        else if (deviceId === 'obwo') {
-             const structStart = 100;
-             const structEnd = width - 100;
+       // === O-TYPE BACKWARD WAVE OSCILLATOR (BWO) ===
+      else if (deviceId === 'obwo') {
+          // --- 1. Physics Engine ---
+          const Vo_kv = inputs.Vo || 5;
+          const Vo_real = Vo_kv * 1000;
+          const Io_mA = inputs.Io || 100;
+          
+          // Physics: Oscillation Frequency depends on Beam Voltage!
+          // f ~ sqrt(Vo) roughly for O-BWO
+          // We simulate this tuning effect
+          const base_freq = 10; // GHz at 5kV
+          const tuned_freq = base_freq * Math.sqrt(Vo_kv / 5.0);
+          
+          // Oscillation Condition (Start Current)
+          // BWO needs a minimum current to sustain the backward wave feedback
+          const I_start_mA = 20 + (Vo_kv * 2); // Fake dependency: Higher V needs higher I
+          const isOscillating = Io_mA > I_start_mA;
+          
+          // --- 2. Visualization Parameters ---
+          const helix_startX = 60;
+          const helix_endX = width - 80;
+          const helix_length_px = helix_endX - helix_startX;
+          
+          const v_pixel_base = 4.0 * Math.pow(Vo_kv/5, 0.4); 
+          // Visual Frequency changes with Voltage (The Tuning Effect)
+          const omega_visual = 0.25 * (tuned_freq / 10.0); 
+          const k_visual = (40 * Math.PI * 2) / helix_length_px;
+
+          // --- 3. Particle System ---
+          if (running) {
+             const densityFactor = Math.min(6.0, Io_mA / 40.0);
+             const bwoMaxParticles = 1000 * densityFactor;
              
-             const V0 = inputs.Vo || 5; 
-             const base_v = Math.sqrt(V0) * 2.5; 
-  
-             if (running && particlesRef.current.length < 3500 * particleDensity) {
-                 const injectionCount = Math.ceil(particleDensity * 4);
-                 for(let j=0; j<injectionCount; j++) {
-                     particlesRef.current.push({ 
-                         x: 50, 
-                         y: cy + (Math.random()-0.5) * 10, 
-                         vx: base_v,
-                         base_vx: base_v, 
-                         type: 'blue' 
-                     });
+             if (particlesRef.current.length < bwoMaxParticles) {
+                 const injectionCount = Math.ceil(3 * densityFactor);
+                 for (let j = 0; j < injectionCount; j++) {
+                    particlesRef.current.push({ 
+                      x: 0 - Math.random() * 20, 
+                      y: cy + (Math.random() - 0.5) * 15,
+                      vx: v_pixel_base,
+                      base_vx: v_pixel_base,
+                      type: 'neutral'
+                    });
                  }
              }
-  
-             if (running) {
-                 particlesRef.current.forEach((p, i) => {
-                     if (p.x > structStart && p.x < structEnd) {
-                         const phase = (p.x * 0.15) - (frameRef.current * 0.2); 
-                         const rf_field = Math.sin(phase);
-                         const waveAmp = 1.0 - ((p.x - structStart) / (structEnd - structStart)) * 0.6;
-  
-                         if (rf_field * waveAmp > 0.15) {
-                            p.vx = p.base_vx * 0.7; 
-                            p.type = 'white';
-                         } else if (rf_field * waveAmp < -0.15) {
-                            p.vx = p.base_vx * 1.8; 
-                            p.type = 'red';
-                         } else {
-                            p.vx = p.base_vx;
-                            p.type = 'blue';
-                         }
-                     } else {
-                         p.vx = p.base_vx;
-                         p.type = 'blue';
-                     }
-  
-                     p.x += p.vx * timeScale;
+          }
+
+          if (running) {
+              particlesRef.current.forEach((p, i) => {
+                 if (p.x >= helix_startX && p.x <= helix_endX) {
+                     // Phase logic (Backward Wave)
+                     // Wave travels Right to Left (Energy), but Phase velocity is synchronous
+                     const wave_phase = (frameRef.current * omega_visual) - ((p.x - helix_startX) * k_visual); 
+                     const sinVal = Math.sin(wave_phase);
+
+                     // AMPLITUDE PROFILE (Backward)
+                     // Power is max at Gun (Left), zero at Collector (Right)
+                     // So amplitude decreases as x increases
+                     const z_norm = (p.x - helix_startX) / helix_length_px; // 0 to 1
                      
-                     if (p.x > width + 50) {
-                        particlesRef.current[i] = { 
-                            x: 50, 
-                            y: cy + (Math.random()-0.5) * 10, 
-                            vx: base_v, 
-                            base_vx: base_v, 
-                            type: 'blue' 
-                        };
-                     }
-                 });
-             }
-  
-             ctx.lineWidth = 4;
-             ctx.strokeStyle = '#d97706'; 
-             ctx.beginPath();
-             const pitch = 30; 
-             const h = 40;     
-             
-             for (let x = structStart; x <= structEnd; x += pitch) {
-                 ctx.moveTo(x, cy - h); 
-                 ctx.lineTo(x, cy - 10);
-                 ctx.moveTo(x + pitch/2, cy + h); 
-                 ctx.lineTo(x + pitch/2, cy + 10);
-             }
-             ctx.stroke();
-             
-             ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-             ctx.lineWidth = 1;
-             ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.stroke();
-  
-             ctx.fillStyle = '#60a5fa'; 
-             ctx.fillRect(20, cy-20, 30, 40); 
-             ctx.fillStyle='#fff'; ctx.font='10px sans-serif'; ctx.fillText("GUN", 25, cy-25);
-  
-             ctx.fillStyle = '#334155'; 
-             ctx.fillRect(width-50, cy-30, 40, 60); 
-             ctx.fillStyle='#94a3b8'; ctx.fillText("COLLECTOR", width-100, cy-35);
-  
-             ctx.strokeStyle = '#ec4899'; ctx.lineWidth = 4;
-             ctx.beginPath(); 
-             ctx.moveTo(structStart, cy - h); 
-             ctx.lineTo(structStart - 20, cy - h - 30); 
-             ctx.stroke();
-             ctx.fillStyle = '#ec4899'; ctx.font='bold 12px sans-serif'; 
-             ctx.fillText("RF OUT", structStart - 40, cy - h - 35);
-  
-             particlesRef.current.forEach(p => {
-                 let color = '#60a5fa'; // Blue
-                 let r = 2.5;
-  
-                 if (p.type === 'white') { 
-                     color = '#ffffff'; // Bunch
-                     r = 3.5; 
-                 } 
-                 else if (p.type === 'red') { 
-                     color = '#ef4444'; // Accelerated
-                     r = 2.0; 
-                 } 
-                 
-                 ctx.beginPath();
-                 ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-                 ctx.fillStyle = color;
-                 
-                 if (p.type === 'white') {
-                    ctx.shadowColor = 'white';
-                    ctx.shadowBlur = 5;
+                     // Linear field profile approximation for BWO
+                     let field_strength = (1.0 - z_norm); 
+                     
+                     if (!isOscillating) field_strength = 0; // No wave if below start current
+
+                     // Interaction Force
+                     // Strongest interaction is near the Gun (where field is strongest)
+                     const force = field_strength * sinVal * 0.3; 
+                     
+                     // Velocity Modulation
+                     // Electrons bunch as they travel forward interacting with the backward field
+                     p.vx = p.base_vx * (1 - force); 
+                     
+                     // Limits
+                     if (p.vx < p.base_vx * 0.2) p.vx = p.base_vx * 0.2;
+                     if (p.vx > p.base_vx * 2.5) p.vx = p.base_vx * 2.5;
+
+                     // Color
+                     if (force > 0.05) p.type = 'slow'; 
+                     else if (force < -0.05) p.type = 'fast'; 
+                     else p.type = 'neutral';
+                     
                  } else {
-                    ctx.shadowBlur = 0;
+                     if (p.x > helix_endX) p.vx = p.base_vx; 
+                     p.type = 'neutral';
                  }
+
+                 p.x += p.vx * timeScale;
                  
-                 ctx.fill();
-                 ctx.shadowBlur = 0; 
-             });
-        }
+                 // Recycle
+                 if (p.x > width + 20) {
+                     particlesRef.current[i] = { 
+                      x: 0 - Math.random() * 20, 
+                      y: cy + (Math.random() - 0.5) * 15,
+                      vx: v_pixel_base,
+                      base_vx: v_pixel_base,
+                      type: 'neutral'
+                    };
+                 }
+              });
+          }
+
+          // --- 4. Drawing ---
+          
+          // Helix
+          ctx.beginPath();
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 1;
+          const helix_amp = 30;
+          for (let x = helix_startX; x <= helix_endX; x += 3) {
+              const coil_phase = (x - helix_startX) / 8.0 * Math.PI * 2;
+              const y_coil = cy + Math.cos(coil_phase) * helix_amp;
+              if (x === helix_startX) ctx.moveTo(x, y_coil); else ctx.lineTo(x, y_coil);
+          }
+          ctx.stroke();
+
+          // RF WAVE (BACKWARD PROFILE)
+          // High at Start (Left), Low at End (Right)
+          if (isOscillating) {
+              ctx.beginPath();
+              const gradient = ctx.createLinearGradient(helix_startX, cy, helix_endX, cy);
+              gradient.addColorStop(0, "rgba(52, 211, 153, 1.0)"); // Bright Green (Output)
+              gradient.addColorStop(1, "rgba(52, 211, 153, 0.0)"); // Transparent (Collector end)
+              
+              ctx.strokeStyle = gradient;
+              ctx.lineWidth = 2;
+              
+              for (let x = helix_startX; x <= helix_endX; x += 2) {
+                 const z_norm = (x - helix_startX) / helix_length_px;
+                 // Profile: Linear drop
+                 const amplitude = (1.0 - z_norm) * helix_amp * 0.9;
+                 
+                 const wave_phase = (frameRef.current * omega_visual) - ((x - helix_startX) * k_visual);
+                 const y_wave = cy - (Math.sin(wave_phase) * amplitude);
+                 
+                 if (x === helix_startX) ctx.moveTo(x, y_wave); else ctx.lineTo(x, y_wave);
+              }
+              ctx.stroke();
+          }
+
+          // OUTPUT COUPLER (At the Gun end!)
+          ctx.fillStyle = isOscillating ? "#34d399" : "#334155";
+          ctx.fillRect(helix_startX - 10, cy - 60, 20, 40); // Waveguide stub
+          drawMetal(helix_startX - 20, cy - 60, 40, 10, '#334155'); // Flange
+          ctx.fillStyle = "#fff";
+          ctx.font = "12px monospace";
+          ctx.fillText("RF OUT", helix_startX, cy - 70);
+
+          // Collector (Termination)
+          ctx.fillStyle = '#1e293b'; ctx.fillRect(helix_endX + 10, cy - 40, 40, 80);
+          ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+          ctx.fillText('COLLECTOR', helix_endX + 10, cy);
+          ctx.fillStyle = '#94a3b8'; 
+          ctx.fillText('(Matched Load)', helix_endX + 10, cy + 15);
+
+          // HUD Info
+          ctx.fillStyle = '#fff';
+          ctx.font = '14px monospace';
+          ctx.textAlign = 'left';
+          
+          if (isOscillating) {
+             ctx.fillStyle = "#34d399";
+             ctx.fillText(`OSCILLATING @ ${tuned_freq.toFixed(2)} GHz`, 20, 30);
+             ctx.fillStyle = "#fff";
+             ctx.font = "12px monospace";
+             ctx.fillText("Voltage Tuning Active", 20, 45);
+          } else {
+             ctx.fillStyle = "#f87171";
+             ctx.fillText("NO OSCILLATION", 20, 30);
+             ctx.fillStyle = "#e2e8f0";
+             ctx.font = "12px monospace";
+             ctx.fillText(`Increase Current > ${I_start_mA.toFixed(0)}mA`, 20, 45);
+          }
+
+          // Particles
+          particlesRef.current.forEach(p => {
+              let color = '#60a5fa'; 
+              let radius = 2.0;
+              if (p.x >= helix_startX && p.x <= helix_endX) {
+                  // Particles bunch as they move RIGHT, even though wave moves LEFT
+                  if (p.type === 'slow') { color = '#ffffff'; radius = 3.5; } 
+                  else if (p.type === 'fast') { color = '#ef4444'; radius = 2.0; }
+              }
+              drawElectron(p.x, p.y, radius, color);
+          });
+      }
 
         // === MAGNETRON ===
         else if (deviceId === 'magnetron') {
