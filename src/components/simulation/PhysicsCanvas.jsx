@@ -506,7 +506,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           });
       }
         
-      // === REFLEX KLYSTRON (TUNED FOR DEEP DRIFT) ===
+      // === REFLEX KLYSTRON (CORRECTED PHYSICS: Low Vr = Long Distance) ===
       else if (deviceId === 'reflex') {
           // --- 1. Physics Engine ---
           const Vo = inputs.Vo || 300;
@@ -533,23 +533,24 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           // --- 2. Visualization Setup ---
           const omega_visual = 0.25; 
-          
-          // Speed Setup: Give them enough speed to fly far!
           const v_pixel_base = 5.0 * Math.pow(Vo/300, 0.5); 
           
-          // FORCE LOGIC (THE FIX):
+          // FORCE LOGIC (CORRECTED):
           // Repeller Force determines how fast they stop.
-          // Force proportional to (Vo + Vr).
-          // To make them go FAR when Vr is LOW, we need a smaller divisor.
-          // But we want a DRAMATIC effect, so we emphasize Vr in the formula visually.
+          // Force F = e * (Vo + Vr) / L.
+          // Acceleration a = F/m.
+          // High Vr -> High Force -> High Deceleration -> Short Distance.
+          // Low Vr -> Low Force -> Low Deceleration -> Long Distance.
           
-          // '120.0' and '0.8' are tuning factors to make the animation look good on screen width
-          // Higher divisor = Weaker force = Longer distance
-          const visual_distance_factor = 120.0 * (L_mm / 2.0); 
-          const repeller_force = (Vo + (Vr * 1.5)) / visual_distance_factor; 
+          // visual_distance_factor scales the visual impact of L
+          const visual_distance_factor = 100.0 * (L_mm / 2.0); 
+          
+          // We apply deceleration directly proportional to (Vo + Vr)
+          // This ensures High Vr = Strong Braking.
+          const repeller_deceleration = (Vo + Vr) / visual_distance_factor; 
 
-          const cavX = width * 0.25; // Moved cavity left to give more room
-          const repellerX = width * 0.9; // Repeller far right
+          const cavX = width * 0.25; // Cavity Position
+          const repellerX = width * 0.9; // Repeller Position
 
           // --- 3. Particle System ---
           if (running) {
@@ -598,17 +599,18 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
                 // B. DRIFT & TURN-AROUND
                 else if (p.state === 'drift' || p.state === 'returning') {
                     // Apply Deceleration Force
-                    p.vx -= repeller_force * timeScale;
+                    // High Vr -> High repeller_deceleration -> Stops quickly (Short distance)
+                    // Low Vr -> Low repeller_deceleration -> Stops slowly (Long distance)
+                    p.vx -= repeller_deceleration * timeScale;
                     p.x += p.vx * timeScale;
                     
-                    // Check Turning Point
+                    // Check Turning Point (Velocity becomes negative)
                     if (p.vx < 0 && p.state === 'drift') {
                         p.state = 'returning';
                     }
                     
                     // COLLISION CHECK:
-                    // If Vr is too low, force is too weak, they shouldn't stop!
-                    // They should hit the Repeller electrode and be absorbed.
+                    // If Vr is TOO low, the particle might not stop before hitting the Repeller!
                     if (p.x > repellerX - 10) {
                         p.state = 'hit_repeller';
                         p.x = -1000; // Kill particle
@@ -650,11 +652,16 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           ctx.fillStyle = '#fff';
           ctx.textAlign = 'center';
           ctx.font = '10px monospace';
-          // Show "Weak Field" or "Strong Field" based on Vr to help user understand
-          const fieldStrength = Vr < 100 ? "WEAK (Long Drift)" : (Vr > 400 ? "STRONG (Short Drift)" : "NORMAL");
+          
+          // Dynamic Label based on Vr
+          let distanceLabel = "";
+          if (Vr < 100) distanceLabel = "(Weak Field - Long Drift)";
+          else if (Vr > 500) distanceLabel = "(Strong Field - Short Drift)";
+          else distanceLabel = "(Normal Drift)";
+
           ctx.fillText(`REPELLER (-${Vr}V)`, repellerX - 15, cy);
           ctx.fillStyle = '#fca5a5';
-          ctx.fillText(fieldStrength, repellerX - 15, cy + 15);
+          ctx.fillText(distanceLabel, repellerX - 15, cy + 15);
 
           // Cavity
           let cavityColor = '#475569'; 
@@ -706,8 +713,8 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
                   if (p.state === 'drift' || p.state === 'returning') {
                       const speed = Math.abs(p.vx);
-                      if (speed < 0.5) { color = '#ffffff'; radius = 4; } 
-                      else if (p.vx < 0) { color = '#fbbf24'; }
+                      if (speed < 0.5) { color = '#ffffff'; radius = 4; } // White flash at turn-around
+                      else if (p.vx < 0) { color = '#fbbf24'; } // Amber returning
                       else {
                           if (p.type === 'fast') color = '#f87171';
                           else if (p.type === 'slow') color = '#93c5fd';
