@@ -1,12 +1,42 @@
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Core Page Layout */
 html, body, #root {
   height: 100%;
+  width: 100%;
   margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevents double scrolling on mobile devices */
+  background-color: #0b0f19; /* Matches the app background */
+  overscroll-behavior: none; /* Disables pull-to-refresh on mobile */
+  touch-action: manipulation;
 }
 
+/* Custom Scrollbar Styles (Used in Sidebar, ControlPanel, etc.) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;   /* Thin scrollbar for vertical */
+  height: 5px;  /* Thin scrollbar for horizontal */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4); /* Dark slate track (transparent) */
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #334155; /* Slate 700 thumb */
+  border-radius: 10px;
+  transition: background-color 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #475569; /* Lighter slate on hover */
+}
+
+/* Animations */
 @keyframes float {
   0%   { transform: translateY(0px); }
   50%  { transform: translateY(-10px); }
