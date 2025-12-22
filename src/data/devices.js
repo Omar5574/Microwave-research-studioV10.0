@@ -37,6 +37,21 @@ export const devices = [
             title: "The Bunching Process",
             text: "Following velocity modulation, electrons enter a field-free drift space of length L. Accelerated electrons overtake slower ones, forming bunches. The degree of bunching is quantified by the Bunching Parameter X:",
             eq: "X = \\frac{\\beta_i V_1}{2 V_0} \\frac{\\omega L}{v_0}"
+        },
+        {
+            title: "Beam Current Modulation",
+            text: "As the electron bunches pass through the catcher cavity grids, they induce an RF current. The magnitude of the fundamental component of this induced current is determined by the Bessel function of the first kind J1(X).",
+            eq: "I_2 = 2 I_0 J_1(X)"
+        },
+        {
+            title: "Output Power & Efficiency",
+            text: "Kinetic energy is transferred from the beam to the RF field in the catcher. The maximum theoretical efficiency is approx 58% (at X=1.841), but in practice, it is lower due to beam loading and ohmic losses.",
+            eq: "\\eta = \\frac{P_{out}}{P_{dc}} = \\frac{\\beta_o I_2 V_2}{2 I_0 V_0} \\times 100\\%"
+        },
+        {
+            title: "Optimum Drift Length",
+            text: "To achieve maximum bunching (X = 1.841) and thus maximum output power, the drift length L must be optimized based on the input voltage and frequency.",
+            eq: "L_{opt} = \\frac{3.682 v_0 V_0}{\\omega \\beta_i V_1}"
         }
       ],
       equations: (p) => {
