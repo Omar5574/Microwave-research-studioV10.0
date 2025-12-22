@@ -130,26 +130,26 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
         }
       }
 
-      // ========== TWO-CAVITY KLYSTRON ==========
+     // ========== TWO-CAVITY KLYSTRON (ENHANCED PHYSICS) ==========
       if (deviceId === 'klystron2') {
-          // 1. Fundamental Constants Calculation
+          // --- 1. Physics Engine Calculation ---
           const Vo_kv = inputs.Vo || 10;
           const Vo_real = Vo_kv * 1000; 
+          // Real Physics Velocity: v = 0.593 * 10^6 * sqrt(Vo)
           const v0_real = 5.93e5 * Math.sqrt(Vo_real); 
           
           const f_GHz = inputs.f || 3;
           const omega_real = 2 * Math.PI * f_GHz * 1e9;
           
-          // Gap Physics 
+          // Gap Coupling (Beta)
           const d_mm = inputs.d || 3;
           const d_meters = d_mm / 1000;
           const transit_angle_rad = (omega_real * d_meters) / v0_real; 
           
-          // Beam Coupling Coefficient (Beta)
           let beta = 1.0;
           const half_theta = transit_angle_rad / 2;
           if (Math.abs(half_theta) > 0.0001) {
-             beta = Math.sin(half_theta) / half_theta;
+              beta = Math.sin(half_theta) / half_theta;
           }
 
           // Bunching Parameter (X)
@@ -158,88 +158,160 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           const drift_angle_rad = (omega_real * L_meters) / v0_real; // Theta_0
           const Vi_real = inputs.Vi || 800;
           
+          // The Real X Factor determining bunch quality
           const X_real = (beta * Vi_real / (2 * Vo_real)) * drift_angle_rad;
 
-          // --- Visualization Mapping ---
-          const v_pixel_base = 6.0 * Math.sqrt(Vo_kv / 10); 
-          const buncherX = width * 0.2;
-          const catcherX = buncherX + (inputs.L || 5) * 60; 
-          const M_visual = X_real * 0.5; 
-          const omega_visual = 0.2*f_GHz; // Visual frequency
+          // Bessel J1 approximation for Output Power Glow
+          let J1_X = 0;
+          if (X_real < 0.1) J1_X = X_real/2;
+          else J1_X = (X_real/2) - (Math.pow(X_real,3)/16) + (Math.pow(X_real,5)/384);
+          const output_glow_intensity = Math.min(1, Math.abs(J1_X) * 1.7); // Maximize around 0.58
 
-          // --- Particle Injection ---
+          // --- 2. Visualization Mapping ---
+          // Map Real Velocity to Screen Pixels (non-linear scaling for better viewing)
+          // Low Vo (0.5kV) -> slow, High Vo (200kV) -> fast but clamp it
+          const v_pixel_base = 3.0 * Math.pow(Vo_kv, 0.4); 
+          
+          const buncherX = width * 0.2;
+          // Distance in pixels proportional to L (cm)
+          const catcherX = buncherX + (inputs.L || 5) * 50; 
+          
+          // Velocity Modulation Depth (fraction of v0)
+          // v(t) = v0 * (1 + depth * sin(wt))
+          // depth = (beta * Vi) / (2 * Vo)
+          const mod_depth = (beta * Vi_real) / (2 * Vo_real);
+          
+          // Visual Frequency (scales with f but keeps animation viewable)
+          const omega_visual = 0.15 * f_GHz; 
+
+          // --- 3. Particle System ---
           if (running) {
-            const klystronMaxParticles = 6000 * particleDensity; 
+            const klystronMaxParticles = 400 * (inputs.Io/200); // More current = More particles
+            
+            // Injection
             if (particlesRef.current.length < klystronMaxParticles) {
-               const injectionCount = Math.ceil(particleDensity * 2);
-               for (let j = 0; j < injectionCount; j++) {
+                const injectionCount = Math.ceil(inputs.Io / 100); // Density based on Io
+                for (let j = 0; j < injectionCount; j++) {
                   particlesRef.current.push({
-                      x: 0 - Math.random() * 5, 
-                      y: cy + (Math.random() - 0.5) * 20, 
+                      x: 0 - Math.random() * 10, 
+                      y: cy + (Math.random() - 0.5) * 25, 
                       vx: v_pixel_base,
                       base_vx: v_pixel_base,
                       modulated: false,
+                      extracted: false, // For energy extraction at catcher
                       type: 'blue'
                   });
-               }
+                }
             }
-          }
 
-          // --- Update Loop ---
-          if (running) {
+            // Update Loop
             particlesRef.current.forEach((p, i) => {
-               if (!p.modulated && p.x >= buncherX) {
+                // A. Buncher Interaction (Velocity Modulation)
+                if (!p.modulated && p.x >= buncherX) {
                   const phase = frameRef.current * omega_visual;
+                  // Apply modulation based on real physics depth
+                  // We multiply mod_depth by a constant to make it visible on screen scale
+                  const visual_mod_factor = mod_depth * 150; // visual scaling
+                  
                   const sinVal = Math.sin(phase);
-                  let v_mod = p.base_vx * (1 + M_visual * sinVal);
-                  if (v_mod < p.base_vx * 0.2) v_mod = p.base_vx * 0.2; 
+                  let v_mod = p.base_vx * (1 + visual_mod_factor * sinVal);
+                  
+                  // Clamp min velocity to prevent stall
+                  if (v_mod < p.base_vx * 0.3) v_mod = p.base_vx * 0.3; 
+                  
                   p.vx = v_mod;
                   p.modulated = true;
-                  if (sinVal > 0.1) p.type = 'fast'; else if (sinVal < -0.1) p.type = 'slow'; else p.type = 'neutral';
-               }
-               if (p.x > catcherX) {
-                   const damping = 0.05; p.vx = p.vx * (1 - damping) + p.base_vx * damping;
-               }
-               p.x += p.vx * timeScale;
-               const recycleLimit = Math.max(width, catcherX + 150) + 50;
-               if (p.x > recycleLimit) {
+                  
+                  // Color coding
+                  if (sinVal > 0.1) p.type = 'fast'; 
+                  else if (sinVal < -0.1) p.type = 'slow'; 
+                  else p.type = 'neutral';
+                }
+
+                // B. Catcher Interaction (Energy Extraction)
+                // If bunching is good, particles decelerate here (giving energy to load)
+                if (!p.extracted && p.x >= catcherX) {
+                    // Simple visual: damp velocity to simulate power loss
+                    // In reality, it depends on the retarding field phase
+                    p.vx = p.vx * 0.8; 
+                    p.extracted = true;
+                }
+
+                // Move
+                p.x += p.vx * timeScale;
+
+                // Recycle
+                const recycleLimit = Math.max(width, catcherX + 150) + 50;
+                if (p.x > recycleLimit) {
                   particlesRef.current[i] = {
-                      x: 0 - Math.random() * 5,
-                      y: cy + (Math.random() - 0.5) * 20,
+                      x: 0 - Math.random() * 10,
+                      y: cy + (Math.random() - 0.5) * 25,
                       vx: v_pixel_base, 
                       base_vx: v_pixel_base,
                       modulated: false,
+                      extracted: false,
                       type: 'blue'
                   };
-               }
+                }
             });
           }
 
-          // --- Drawing ---
-          drawMetal(0, cy - 55, Math.max(width, catcherX + 100), 15, 'steel');
-          drawMetal(0, cy + 40, Math.max(width, catcherX + 100), 15, 'steel');
+          // --- 4. Drawing Layers ---
           
-          drawCavity(buncherX, cy, 50, 80, 'BUNCHER');
-          drawCavity(catcherX, cy, 50, 80, 'CATCHER');
+          // Drift Tube walls
+          drawMetal(0, cy - 60, Math.max(width, catcherX + 100), 20, '#334155');
+          drawMetal(0, cy + 40, Math.max(width, catcherX + 100), 20, '#334155');
+          
+          // BUNCHER (Input)
+          // Pulsing Input Signal color
+          const in_signal = Math.sin(frameRef.current * omega_visual);
+          const buncherColor = in_signal > 0 ? '#60a5fa' : '#3b82f6';
+          drawCavity(buncherX, cy, 60, 90, 'RF IN', buncherColor);
 
-          const collectorX = Math.max(width - 40, catcherX + 60);
-          ctx.fillStyle = '#334155';
-          ctx.fillRect(collectorX, cy - 40, 40, 80);
+          // CATCHER (Output)
+          // Glow intensity depends on J1(X) - Real Physics!
+          const outOpacity = 0.2 + 0.8 * output_glow_intensity;
+          const catcherGlow = `rgba(244, 63, 94, ${outOpacity})`; // Pink/Red glow
+          
+          // Draw Glow Halo
+          if (output_glow_intensity > 0.3) {
+             ctx.beginPath();
+             ctx.arc(catcherX + 25, cy, 60 * output_glow_intensity, 0, Math.PI*2);
+             ctx.fillStyle = `rgba(244, 63, 94, ${output_glow_intensity * 0.3})`;
+             ctx.fill();
+          }
+          drawCavity(catcherX, cy, 60, 90, 'RF OUT', catcherGlow);
+
+          // COLLECTOR
+          const collectorX = Math.max(width - 60, catcherX + 100);
+          drawMetal(collectorX, cy - 50, 60, 100, '#1e293b');
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText('COLLECTOR', collectorX + 5, cy + 5);
+
+          // INFO HUD (Physics Feedback)
           ctx.fillStyle = '#fff';
-          ctx.font = '10px monospace';
-          ctx.fillText('COLLECTOR', collectorX + 5, cy);
+          ctx.font = '14px monospace';
+          ctx.fillText(`Bunching Param (X): ${X_real.toFixed(3)}`, 20, 30);
+          
+          let statusText = "";
+          let statusColor = "#94a3b8";
+          
+          if (X_real < 1.0) { statusText = "UNDER-BUNCHED (Increase L or Vi)"; statusColor = "#facc15"; }
+          else if (X_real >= 1.8 && X_real <= 1.9) { statusText = "OPTIMAL BUNCHING (Max Power!)"; statusColor = "#4ade80"; }
+          else if (X_real > 2.0) { statusText = "OVER-BUNCHED (Crossover)"; statusColor = "#f87171"; }
+          else { statusText = "GOOD BUNCHING"; statusColor = "#60a5fa"; }
+          
+          ctx.fillStyle = statusColor;
+          ctx.fillText(statusText, 20, 50);
 
-          ctx.fillStyle = X_real > 1.8 && X_real < 1.9 ? '#4ade80' : '#94a3b8';
-          ctx.fillText(X_real > 1.8 && X_real < 1.9 ? "OPTIMAL BUNCHING!" : "", 20, cy + 130);
-
+          // Electrons
           particlesRef.current.forEach(p => {
-             let color = '#60a5fa'; 
-             if (p.type === 'fast') color = '#f87171'; 
-             if (p.type === 'slow') color = '#e2e8f0'; 
-             drawElectron(p.x, p.y, 2.5, color);
+              let color = '#60a5fa'; 
+              if (p.type === 'fast') color = '#ef4444'; // Red for fast
+              if (p.type === 'slow') color = '#fbbf24'; // Amber for slow
+              drawElectron(p.x, p.y, 3, color);
           });
-        }
-
+      }
         // === MULTI-CAVITY KLYSTRON ===
         else if (deviceId === 'klystronMulti') {
            // 1. Physics Calculations
