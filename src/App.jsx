@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-
+import { GoogleGenerativeAI } from "@google/generative-ai"; // تأكد من وجود هذا الاستيراد إذا كنت تستخدمه
 
 // Data & Components imports
 import { devices } from './data/devices';
@@ -11,11 +11,15 @@ import { WaveformDisplay } from './components/simulation/WaveformDisplay';
 import { FFTDisplay } from './components/simulation/FFTDisplay';
 import { DeepExplanation } from './components/panels/DeepExplanation';
 import ExpertQuery from './components/features/ExpertQuery';
+import { Header } from './components/layout/Header'; // تأكد من استيراد Header
 
 export default function App() {
   // === TABS & UI STATE ===
-  const [activeTab, setActiveTab] = useState("simulation"); // 'simulation' or 'explanation'
-  const [showQuickInfo, setShowQuickInfo] = useState(false); // زر الشرح السريع
+  const [activeTab, setActiveTab] = useState("simulation"); 
+  const [showQuickInfo, setShowQuickInfo] = useState(false);
+  
+  // *** NEW: حالة القائمة الجانبية للموبايل ***
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // ========== SIMULATION CORE STATES ==========
   const [activeId, setActiveId] = useState('klystron2');
@@ -146,76 +150,39 @@ export default function App() {
         deviceName={activeDevice.name} history={chatHistory} currentInputs={currentInputsFormatted}
       />
 
-      {/* HEADER */}
-      <header className="h-16 bg-slate-900/95 border-b border-slate-700 flex items-center justify-between px-6 z-50 shrink-0">
+      {/* HEADER: Added onMenuToggle prop */}
+      <Header 
+        activeTab={activeTab} setActiveTab={setActiveTab}
+        fidelity={fidelity} setFidelity={setFidelity}
+        timeScale={timeScale} setTimeScale={setTimeScale}
+        running={running} setRunning={setRunning}
+        onChatOpen={() => setShowChat(true)}
+        onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+      />
+
+      {/* BODY: Changed to flex-col for mobile, flex-row for desktop */}
+      <div className="flex flex-1 relative overflow-hidden flex-col md:flex-row">
         
-        <div className="flex items-center gap-4">
-          <h1 className="text-emerald-500 font-bold text-lg tracking-wider hidden md:block">
-            Microwave Research Studio
-          </h1>
-
-          <div className="flex items-center gap-2 ml-4">
-            <button
-              onClick={() => setActiveTab("simulation")}
-              className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
-                activeTab === "simulation"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
-              }`}
-            >
-              Live Simulation
-            </button>
-
-            <button
-              onClick={() => setActiveTab("explanation")}
-              className={`px-4 py-1.5 text-sm font-bold rounded transition-all ${
-                activeTab === "explanation"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
-              }`}
-            >
-              Deep Explanation
-            </button>
-            
-            {/* Quick Info Button */}
-             <button
-              onClick={() => setShowQuickInfo(!showQuickInfo)}
-              className={`ml-2 px-3 py-1.5 text-xs font-bold uppercase rounded border transition-all ${
-                showQuickInfo 
-                  ? "bg-emerald-500 border-emerald-400 text-black" 
-                  : "bg-transparent border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500"
-              }`}
-            >
-              {showQuickInfo ? "Hide Info" : "Quick Info"}
-            </button>
-
-          </div>
-
-          <button 
-            onClick={() => setShowChat(true)}
-            className="px-4 py-1.5 text-xs font-bold rounded bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500 transition-all shadow-lg ml-4 flex items-center gap-2"
-          >
-            <span>Ask AI</span> 
-            <span className="text-lg">🤖</span>
-          </button>
+        {/* SIDEBAR: Responsive logic added */}
+        <div className={`
+            absolute md:relative z-30 h-full transition-transform duration-300
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}>
+          <Sidebar devices={devices} activeId={activeId} setActiveId={(id) => {
+            setActiveId(id);
+            setIsSidebarOpen(false); // Close menu on selection
+          }} />
         </div>
 
-        <div className="flex items-center">
-            <img 
-            src="/kfs-logo.png" 
-            alt="University Logo"
-            className="h-12 opacity-90 hover:opacity-100 transition-opacity"
-            onError={(e) => {e.target.style.display='none'}}
-            />
-        </div>
-      </header>
+        {/* Overlay for mobile when sidebar is open */}
+        {isSidebarOpen && (
+          <div 
+            className="absolute inset-0 bg-black/50 z-20 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
 
-      {/* BODY */}
-      <div className="flex flex-1 relative overflow-hidden">
-        
-        <Sidebar devices={devices} activeId={activeId} setActiveId={setActiveId} />
-
-        <main className="flex-1 flex flex-col relative bg-black overflow-hidden">
+        <main className="flex-1 flex flex-col relative bg-black overflow-hidden w-full">
 
           <div className="flex-1 relative overflow-hidden bg-[#050505]">
             
@@ -227,6 +194,7 @@ export default function App() {
                  <div className="text-xs text-slate-400 bg-black/40 p-2 rounded border border-slate-700 font-mono">
                     {activeDevice.theory.plain}
                  </div>
+                 <button onClick={()=>setShowQuickInfo(false)} className="mt-2 text-xs text-red-400 underline">Close</button>
               </div>
             )}
 
@@ -241,8 +209,8 @@ export default function App() {
                   particleDensity={particleDensity}
                 />
                 
-                {/* 2. Overlays (Waveform & FFT) - UPDATED: BIGGER & HORIZONTAL */}
-                <div className="absolute bottom-6 right-6 flex flex-row gap-4 items-end pointer-events-none z-10 scale-125 origin-bottom-right">
+                {/* 2. Overlays (Waveform & FFT) - Hidden on small mobile screens to save space */}
+                <div className="hidden md:flex absolute bottom-6 right-6 flex-row gap-4 items-end pointer-events-none z-10 scale-90 md:scale-125 origin-bottom-right">
                   <div className="pointer-events-auto">
                     {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
                   </div>
