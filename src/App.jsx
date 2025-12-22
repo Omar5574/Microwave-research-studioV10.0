@@ -18,7 +18,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("simulation"); 
   const [showQuickInfo, setShowQuickInfo] = useState(false);
   
-  // *** NEW: حالة القائمة الجانبية للموبايل ***
+  // *** NEW: Mobile Sidebar State ***
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // ========== SIMULATION CORE STATES ==========
@@ -210,7 +210,8 @@ export default function App() {
                 />
                 
                 {/* 2. Overlays (Waveform & FFT) - Hidden on small mobile screens */}
-                <div className="hidden md:flex absolute bottom-6 right-6 flex-row gap-4 items-end pointer-events-none z-10 scale-90 md:scale-125 origin-bottom-right">
+                {/* MODIFICATION: Reduced scale from md:scale-125 to md:scale-90 to make it smaller on PC */}
+                <div className="hidden md:flex absolute bottom-6 right-6 flex-row gap-4 items-end pointer-events-none z-10 scale-75 md:scale-90 origin-bottom-right">
                   <div className="pointer-events-auto">
                     {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
                   </div>
