@@ -308,7 +308,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           particlesRef.current.forEach(p => {
               let color = '#60a5fa'; 
               if (p.type === 'fast') color = '#ef4444'; // Red for fast
-              if (p.type === 'slow') color = '#fbbf24'; // Amber for slow
+              if (p.type === 'slow') color = #e2e8f0'; // White for slow
               drawElectron(p.x, p.y, 3, color);
           });
       }
@@ -523,7 +523,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           particlesRef.current.forEach(p => {
              let color = '#60a5fa'; 
              if (p.type === 'fast') color = '#ef4444'; 
-             if (p.type === 'slow') color = '#fbbf24'; 
+             if (p.type === 'slow') color = '#e2e8f0'; 
              drawElectron(p.x, p.y, 2.5, color);
           });
       }
