@@ -10,74 +10,123 @@ const VISUAL_DIFFUSION_SCALE = 15.0;
 
 export const devices = [
   // ================= O-TYPE DEVICES (Vacuum Tubes) =================
-  { 
-       id: 'klystron2', 
-       name: 'Two-Cavity Klystron', 
-       type: 'O-TYPE',
-       params: [
-         { id: 'Vo', label: 'Beam Voltage (V₀)', unit: 'kV', min: 0.5, max: 200, def: 10, step: 0.5 },
-         { id: 'Io', label: 'Beam Current (I₀)', unit: 'mA', min: 1, max: 5000, def: 200, step: 10 },
-         { id: 'Vi', label: 'RF Input (V₁)', unit: 'V', min: 0, max: 10000, def: 800, step: 50 },
-         { id: 'f', label: 'Frequency', unit: 'GHz', min: 0.1, max: 100, def: 3, step: 0.1 },
-         { id: 'L', label: 'Drift Length', unit: 'cm', min: 0.1, max: 50, def: 5, step: 0.1 },
-         { id: 'd', label: 'Gap Spacing', unit: 'mm', min: 0.1, max: 20, def: 3, step: 0.1 }
-       ],
-       desc: 'Fundamental velocity modulation device. Separates beam acceleration from interaction.',
-       theory: {
-         plain: 'Bunching Parameter: X = βVᵢ/(2V₀)θ₀, Coupling: β = sin(θg/2)/(θg/2), Gain ∝ J₁(X)',
-         latex: 'X = \\frac{\\beta V_1}{2V_0}\\theta_0, \\quad \\beta = \\frac{\\sin(\\theta_g/2)}{\\theta_g/2}, \\quad P_{out} \\propto J_1(X)'
-       },
-       explanation: [
-         {
-             title: "Mechanism of Velocity Modulation",
-             text: "Electrons emitted from the cathode are accelerated by a high DC potential V0, entering the interaction region with a uniform DC velocity v0. This velocity is derived from the conservation of energy.",
-             eq: "v_0 = \\sqrt{\\frac{2e V_0}{m}} \\approx 0.593 \\times 10^6 \\sqrt{V_0} \\text{ m/s}"
-         },
-         {
-             title: "The Bunching Process",
-             text: "Following velocity modulation, electrons enter a field-free drift space of length L. Accelerated electrons overtake slower ones, forming bunches. The degree of bunching is quantified by the Bunching Parameter X:",
-             eq: "X = \\frac{\\beta_i V_1}{2 V_0} \\frac{\\omega L}{v_0}"
-         }
-       ],
-       equations: (p) => {
-           const Vo = (p.Vo || 10) * 1000;
-           const v0 = 5.93e5 * Math.sqrt(Vo);
-           const f = (p.f || 3) * 1e9;
-           const omega = 2 * Math.PI * f;
-           const d = (p.d || 3) / 1000;
-           const L = (p.L || 5) / 100;
-           
-           const theta_g = (omega * d) / v0;
-           let beta = 1;
-           if (Math.abs(theta_g/2) > 0.001) beta = Math.sin(theta_g/2)/(theta_g/2);
+ {
+      id: 'klystron2', 
+      name: 'Two-Cavity Klystron', 
+      type: 'O-TYPE',
+      params: [
+        { id: 'Vo', label: 'Beam Voltage (V₀)', unit: 'kV', min: 0.5, max: 200, def: 10, step: 0.5 },
+        { id: 'Io', label: 'Beam Current (I₀)', unit: 'mA', min: 1, max: 5000, def: 200, step: 10 },
+        { id: 'Vi', label: 'RF Input (V₁)', unit: 'V', min: 0, max: 10000, def: 800, step: 50 },
+        { id: 'f', label: 'Frequency', unit: 'GHz', min: 0.1, max: 100, def: 3, step: 0.1 },
+        { id: 'L', label: 'Drift Length', unit: 'cm', min: 0.1, max: 50, def: 5, step: 0.1 },
+        { id: 'd', label: 'Gap Spacing', unit: 'mm', min: 0.1, max: 20, def: 3, step: 0.1 }
+      ],
+      desc: 'Fundamental velocity modulation device. Separates beam acceleration from interaction.',
+      theory: {
+        plain: 'Bunching Parameter: X = βVᵢ/(2V₀)θ₀, Coupling: β = sin(θg/2)/(θg/2), Gain ∝ J₁(X)',
+        latex: 'X = \\frac{\\beta V_1}{2V_0}\\theta_0, \\quad \\beta = \\frac{\\sin(\\theta_g/2)}{\\theta_g/2}, \\quad I_2 = 2I_0 J_1(X)'
+      },
+      explanation: [
+        {
+            title: "Mechanism of Velocity Modulation",
+            text: "Electrons emitted from the cathode are accelerated by a high DC potential V0, entering the interaction region with a uniform DC velocity v0. This velocity is derived from the conservation of energy.",
+            eq: "v_0 = \\sqrt{\\frac{2e V_0}{m}} \\approx 0.593 \\times 10^6 \\sqrt{V_0} \\text{ m/s}"
+        },
+        {
+            title: "The Bunching Process",
+            text: "Following velocity modulation, electrons enter a field-free drift space of length L. Accelerated electrons overtake slower ones, forming bunches. The degree of bunching is quantified by the Bunching Parameter X:",
+            eq: "X = \\frac{\\beta_i V_1}{2 V_0} \\frac{\\omega L}{v_0}"
+        }
+      ],
+      equations: (p) => {
+          const Vo = (p.Vo || 10) * 1000;
+          const Io = (p.Io || 200) / 1000; // Convert to Amperes
+          const v0 = 5.93e5 * Math.sqrt(Vo);
+          const f = (p.f || 3) * 1e9;
+          const omega = 2 * Math.PI * f;
+          const d = (p.d || 3) / 1000;
+          const L = (p.L || 5) / 100;
+          const V1 = p.Vi || 800;
 
-           const theta_0 = (omega * L) / v0; 
-           const V1 = p.Vi || 800;
-           const X = (beta * V1 / (2 * Vo)) * theta_0;
+          // 1. Gap Transit Angle (theta_g)
+          const theta_g = (omega * d) / v0;
+          
+          // 2. Coupling Coefficient (beta)
+          let beta = 1;
+          if (Math.abs(theta_g/2) > 0.001) beta = Math.sin(theta_g/2)/(theta_g/2);
 
-           const L_opt_meters = (3.682 * Vo * v0) / (omega * beta * V1);
-           const L_opt_cm = L_opt_meters * 100;
+          // 3. DC Transit Angle (theta_0)
+          const theta_0 = (omega * L) / v0; 
+          
+          // 4. Bunching Parameter (X)
+          const X = (beta * V1 / (2 * Vo)) * theta_0;
 
-           return {
-             'Beam Velocity': { value: v0.toExponential(2), unit: 'm/s', latex: 'v_0' },
-             'Bunching Param (X)': { value: X.toFixed(3), unit: '', latex: 'X' },
-             'Coupling Coeff (β)': { value: beta.toFixed(3), unit: '', latex: '\\beta' },
-             'Optimum Drift (L)': { value: L_opt_cm.toFixed(2), unit: 'cm', latex: 'L_{opt}' }
-           };
-       },
-       calculate: (params, t) => {
-           const Vo = params.Vo * 1000;
-           const v0 = 0.593e6 * Math.sqrt(Vo);
-           const w = 2 * Math.PI * params.f * 1e9;
-           const theta_0 = (w * (params.L/100)) / v0;
-           const I2 = 2 * params.Io * 0.58; 
-           return {
-               current: params.Io * (1 + 1.1 * Math.sin(w*t - theta_0)),
-               voltage: params.Vi * Math.sin(w*t),
-               power: I2 * params.Vi * 0.5
-           };
-       }
-     },
+          // Bessel Function J1(X) approximation
+          const J1 = (x) => {
+              if (x < 0.01) return x/2;
+              return (x/2) - (Math.pow(x,3)/16) + (Math.pow(x,5)/384); 
+          };
+
+          // 5. RF Current component (I2) magnitude
+          const I2_mag = 2 * Io * J1(X);
+
+          // 6. Beam Loading Conductance (GB)
+          const G0 = Io / Vo;
+          const GB = (G0 / 2) * (Math.pow(beta, 2) - beta * Math.cos(theta_g / 2));
+
+          // 7. Optimum Drift Length
+          const L_opt_meters = (3.682 * Vo * v0) / (omega * beta * V1);
+          const L_opt_cm = L_opt_meters * 100;
+
+          return {
+            'Beam Velocity (v₀)': { value: v0.toExponential(2), unit: 'm/s', latex: 'v_0' },
+            'Gap Transit Angle (θg)': { value: theta_g.toFixed(2), unit: 'rad', latex: '\\theta_g' },
+            'Coupling Coeff (β)': { value: beta.toFixed(3), unit: '', latex: '\\beta' },
+            'DC Transit Angle (θ₀)': { value: theta_0.toFixed(1), unit: 'rad', latex: '\\theta_0' },
+            'Bunching Param (X)': { value: X.toFixed(3), unit: '', latex: 'X' },
+            'RF Current (I₂)': { value: (I2_mag * 1000).toFixed(2), unit: 'mA', latex: 'I_2' },
+            'Beam Loading (G_B)': { value: GB.toExponential(2), unit: 'S', latex: 'G_B' },
+            'Optimum Drift (L_opt)': { value: L_opt_cm.toFixed(2), unit: 'cm', latex: 'L_{opt}' }
+          };
+      },
+      calculate: (params, t) => {
+          const Vo = params.Vo * 1000;
+          const Io = params.Io / 1000; // Amperes
+          const Vi = params.Vi;
+          const v0 = 5.93e5 * Math.sqrt(Vo);
+          const w = 2 * Math.PI * params.f * 1e9;
+          
+          // Recalculate physics parameters for animation
+          const d = (params.d || 3) / 1000;
+          const theta_g = (w * d) / v0;
+          let beta = 1;
+          if (Math.abs(theta_g/2) > 0.001) beta = Math.sin(theta_g/2)/(theta_g/2);
+
+          const L = params.L / 100;
+          const theta_0 = (w * L) / v0;
+          const X = (beta * Vi / (2 * Vo)) * theta_0;
+
+          // Bessel J1(X) approximation
+          let J1_X = 0;
+          if (X < 0.1) J1_X = X/2;
+          else J1_X = (X/2) - (Math.pow(X,3)/16) + (Math.pow(X,5)/384);
+
+          // Induced RF Current
+          const I2_mag = 2 * Io * J1_X;
+          
+          return {
+              // Current in mA
+              current: (Io + I2_mag * Math.cos(w*t - theta_0)) * 1000, 
+              // Input Voltage
+              voltage: Vi * Math.sin(w*t),
+              // Output Power
+              power: 0.5 * I2_mag * Vi,
+              // Modulated Velocity
+              velocity: v0 * (1 + (beta * Vi / (2 * Vo)) * Math.sin(w*t))
+          };
+      }
+    },
      { 
        id: 'klystronMulti', 
        name: 'Multi-Cavity Klystron', 
