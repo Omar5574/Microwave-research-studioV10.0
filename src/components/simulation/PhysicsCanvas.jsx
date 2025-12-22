@@ -677,40 +677,40 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               drawElectron(p.x, p.y, radius, color);
           });
       }
-      // === TRAVELING WAVE TUBE (SUPER BUNCHING VISUALS) ===
+      // === TRAVELING WAVE TUBE (WITH TOGGLEABLE ATTENUATOR) ===
       else if (deviceId === 'twt') {
           // --- 1. Physics Engine ---
           const Vo_kv = inputs.Vo || 3;
           const Vo_real = Vo_kv * 1000;
           const Io_mA = inputs.Io || 50;
           
-          // Beam Velocity
           const v0_real = 5.93e5 * Math.sqrt(Vo_real);
           const f_GHz = inputs.f || 10;
           
-          // Pierce Gain Parameter C calculation
           const Z0 = 50; 
           const C = Math.pow(( (Io_mA/1000) * Z0 ) / (4 * Vo_real), 1/3);
           const N_len = inputs.N || 40; 
-          
-          // Theoretical Gain (Controls how strong the bunching gets at the end)
           const theoretical_gain_db = -9.54 + (47.3 * N_len * C);
           
+          // CHECK ATTENUATOR STATE (Default to 1/ON if undefined)
+          const hasAttenuator = (inputs.atten !== undefined) ? (inputs.atten === 1) : true;
+
           // --- 2. Visualization Parameters ---
           const helix_startX = 60;
           const helix_endX = width - 80;
           const helix_length_px = helix_endX - helix_startX;
           
-          // Visual Speed (Slightly slower to allow eyes to track bunches)
+          // Attenuator Position
+          const atten_start_px = helix_startX + helix_length_px * 0.35;
+          const atten_width_px = 40;
+          const atten_end_px = atten_start_px + atten_width_px;
+
           const v_pixel_base = 3.5 * Math.pow(Vo_kv/3, 0.4); 
           const omega_visual = 0.25; 
-          
-          // Wave Number: Fit N waves
           const k_visual = (N_len * Math.PI * 2) / helix_length_px;
 
           // --- 3. Particle System ---
           if (running) {
-             // More particles = Better looking bunches
              const densityFactor = Math.min(6.0, Io_mA / 20.0);
              const twtMaxParticles = 1500 * densityFactor; 
              
@@ -730,43 +730,42 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           if (running) {
               particlesRef.current.forEach((p, i) => {
-                 // Check if inside Helix
                  if (p.x >= helix_startX && p.x <= helix_endX) {
-                     // Phase of the Wave
                      const wave_phase = (frameRef.current * omega_visual) - ((p.x - helix_startX) * k_visual); 
                      const sinVal = Math.sin(wave_phase);
 
-                     // GROWTH LOGIC
+                     // --- PHYSICS: WAVE GROWTH LOGIC ---
                      const z_norm = (p.x - helix_startX) / helix_length_px;
+                     let effective_growth = Math.exp(z_norm * 2.5); // Base exponential growth
                      
-                     // Scale growth based on real Gain (min 10dB, max 60dB visual range)
-                     const gain_factor = Math.max(1.0, theoretical_gain_db / 10.0);
-                     const amplitude_growth = Math.exp(z_norm * Math.min(3.5, gain_factor * 0.6));
-                     
-                     // FORCE CALCULATION (THE BUNCHING MAKER)
+                     // == ATTENUATOR LOGIC FOR PARTICLES ==
+                     if (hasAttenuator) {
+                         // With Attenuator: Field drops to near zero
+                         if (p.x > atten_start_px - 10 && p.x < atten_end_px + 20) {
+                             effective_growth *= 0.1; 
+                         }
+                     } else {
+                         // Without Attenuator: Continuous Growth (Simulating Feedback/Oscillation Risk)
+                         // Visual trick: make it grow slightly faster to show danger
+                         effective_growth = Math.exp(z_norm * 2.8); 
+                     }
+
                      const input_drive = (inputs.Vi || 20) / 200.0; 
-                     const interaction_strength = input_drive * amplitude_growth;
+                     const interaction_strength = input_drive * effective_growth;
                      
-                     // **VISUAL HACK**: Increase force multiplier to 0.4 (was 0.15)
-                     // This forces particles to clump aggressively
+                     // Force Logic
                      const force = interaction_strength * sinVal * 0.4;
-                     
-                     // Apply Velocity Modulation
-                     // (1 - force) means: Positive Force (Retarding) -> Slower Speed -> Bunching
                      p.vx = p.base_vx * (1 - force); 
                      
-                     // Clamp speeds to keep simulation stable
                      if (p.vx < p.base_vx * 0.2) p.vx = p.base_vx * 0.2;
                      if (p.vx > p.base_vx * 2.5) p.vx = p.base_vx * 2.5;
 
-                     // COLOR CODING (Make bunches pop!)
-                     // Threshold lowered to 0.05 to catch more bunched electrons
-                     if (force > 0.05) p.type = 'slow'; // The BUNCH (White)
-                     else if (force < -0.05) p.type = 'fast'; // The Anti-Bunch (Red)
+                     // Color
+                     if (force > 0.05) p.type = 'slow'; 
+                     else if (force < -0.05) p.type = 'fast'; 
                      else p.type = 'neutral';
                      
                  } else {
-                     // Reset outside
                      if (p.x > helix_endX) p.vx = p.base_vx; 
                      p.type = 'neutral';
                  }
@@ -787,7 +786,8 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           }
 
           // --- 4. Drawing ---
-          // Helix Coil
+          
+          // Helix
           ctx.beginPath();
           ctx.strokeStyle = '#475569';
           ctx.lineWidth = 1;
@@ -799,20 +799,74 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           }
           ctx.stroke();
 
-          // RF Wave (Growing Envelope)
+          // == DRAW ATTENUATOR ONLY IF ON ==
+          if (hasAttenuator) {
+              ctx.fillStyle = "#334155"; 
+              ctx.fillRect(atten_start_px, cy - 35, atten_width_px, 70);
+              
+              ctx.beginPath();
+              ctx.strokeStyle = "#475569";
+              ctx.lineWidth = 1;
+              for(let lx = atten_start_px; lx < atten_end_px; lx+=5) {
+                  ctx.moveTo(lx, cy - 35);
+                  ctx.lineTo(lx - 5, cy + 35);
+              }
+              ctx.stroke();
+              
+              ctx.fillStyle = "#e2e8f0";
+              ctx.font = "10px monospace";
+              ctx.textAlign = "center";
+              ctx.fillText("ATTENUATOR", atten_start_px + atten_width_px/2, cy - 40);
+          } else {
+              // WARNING TEXT IF OFF
+              ctx.fillStyle = "rgba(239, 68, 68, 0.2)"; // Red background
+              ctx.fillRect(atten_start_px - 20, cy - 45, 80, 90);
+              ctx.fillStyle = "#ef4444";
+              ctx.font = "10px monospace";
+              ctx.textAlign = "center";
+              ctx.fillText("NO ATTENUATION", atten_start_px + 20, cy - 50);
+          }
+
+
+          // RF Wave (Visual Logic based on Toggle)
           ctx.beginPath();
           const gradient = ctx.createLinearGradient(helix_startX, cy, helix_endX, cy);
-          gradient.addColorStop(0, "rgba(96, 165, 250, 0.2)"); 
-          gradient.addColorStop(1, "rgba(244, 63, 94, 0.9)");  
+          gradient.addColorStop(0, "rgba(96, 165, 250, 0.3)"); 
+          
+          if (hasAttenuator) {
+              gradient.addColorStop(0.35, "rgba(167, 139, 250, 0.6)");
+              gradient.addColorStop(0.4, "rgba(71, 85, 105, 0.1)");   // Dead zone
+              gradient.addColorStop(0.45, "rgba(71, 85, 105, 0.1)");
+              gradient.addColorStop(0.6, "rgba(244, 63, 94, 0.5)");
+          } else {
+              gradient.addColorStop(0.5, "rgba(244, 63, 94, 0.6)"); // Continuous Red
+          }
+          gradient.addColorStop(1, "rgba(244, 63, 94, 1.0)");
+          
           ctx.strokeStyle = gradient;
           ctx.lineWidth = 2;
           
           for (let x = helix_startX; x <= helix_endX; x += 2) {
              const z_norm = (x - helix_startX) / helix_length_px;
-             const growth = Math.exp(z_norm * 2.5);
              const wave_phase = (frameRef.current * omega_visual) - ((x - helix_startX) * k_visual);
              const input_amp = (inputs.Vi || 20) / 20.0; 
-             // Wave grows visually
+
+             // SIMULATE WAVE GROWTH (Conditional)
+             let growth = Math.exp(z_norm * 2.5);
+             
+             if (hasAttenuator) {
+                 // Drop at attenuator
+                 if (x > atten_start_px && x < atten_end_px) {
+                     growth *= 0.1; 
+                 } else if (x >= atten_end_px) {
+                     growth *= 0.4 + (z_norm - 0.4) * 2.0; 
+                 }
+             } else {
+                 // UNCONTROLLED GROWTH (Oscillation Simulation)
+                 // Wave just keeps getting bigger without the dip
+                 growth = Math.exp(z_norm * 2.8); 
+             }
+
              const y_wave = cy - (Math.sin(wave_phase) * helix_amp * 0.9 * Math.min(1.0, growth * input_amp * 0.1));
              if (x === helix_startX) ctx.moveTo(x, y_wave); else ctx.lineTo(x, y_wave);
           }
@@ -820,26 +874,27 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           
           // Collector & HUD
           ctx.fillStyle = '#1e293b'; ctx.fillRect(helix_endX + 10, cy - 40, 40, 80);
-          ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('COLLECTOR', helix_endX + 10, cy);
+          ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+          ctx.fillText('COLLECTOR', helix_endX + 10, cy);
           
           ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = '14px monospace';
           ctx.fillText(`Gain Param (C): ${C.toFixed(3)}`, 20, 30);
-          ctx.fillText(`Gain: ~${theoretical_gain_db.toFixed(1)} dB`, 20, 50);
+          
+          // Status Text based on Attenuator
+          if (hasAttenuator) {
+             ctx.fillText(`Gain: ~${theoretical_gain_db.toFixed(1)} dB`, 20, 50);
+          } else {
+             ctx.fillStyle = "#f87171"; // Red Warning
+             ctx.fillText(`⚠️ UNSTABLE / OSCILLATING`, 20, 50);
+          }
 
-          // DRAW PARTICLES
+          // Particles
           particlesRef.current.forEach(p => {
-              let color = '#60a5fa'; // Blue default
+              let color = '#60a5fa'; 
               let radius = 2.0;
-
               if (p.x >= helix_startX && p.x <= helix_endX) {
-                  // HIGHLIGHT THE BUNCH
-                  if (p.type === 'slow') { 
-                      color = '#ffffff'; // White = Bunched
-                      radius = 3.5; // Bigger to stand out
-                  } else if (p.type === 'fast') {
-                      color = '#ef4444'; // Red = Anti-bunch
-                      radius = 2.0;
-                  }
+                  if (p.type === 'slow') { color = '#ffffff'; radius = 3.5; } 
+                  else if (p.type === 'fast') { color = '#ef4444'; radius = 2.0; }
               }
               drawElectron(p.x, p.y, radius, color);
           });
