@@ -1,3 +1,4 @@
+// src/components/panels/TheoryPanel.jsx
 import React from 'react';
 
 export function TheoryPanel({ 
@@ -11,7 +12,9 @@ export function TheoryPanel({
   setShowFFT
 }) {
   return (
-    <div className="w-96 bg-[#0a0a0a] border-l border-slate-800 flex flex-col shrink-0">
+    // التعديل: w-full للموبايل و w-96 للديسك توب
+    // التعديل: الحدود (Border) تكون علوية في الموبايل وجانبية في الديسك توب
+    <div className="w-full md:w-96 bg-[#0a0a0a] border-t md:border-t-0 md:border-l border-slate-800 flex flex-col shrink-0">
       {/* Theory Section */}
       <div className="p-4 border-b border-slate-800 shrink-0">
         <div className="flex items-center justify-between mb-3">
@@ -52,7 +55,7 @@ export function TheoryPanel({
       </div>
 
       {/* Live Calculations */}
-      <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 p-4 overflow-y-auto custom-scrollbar max-h-40 md:max-h-full">
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Live Parameters</h3>
         <div className="space-y-2">
           {Object.entries(device.equations(safeInputs)).map(([key, val]) => (
