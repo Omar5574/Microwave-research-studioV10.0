@@ -507,57 +507,44 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
       }
         
         // === REFLEX KLYSTRON (PHYSICS ACCURATE) ===
+      // === REFLEX KLYSTRON (BEST VISUALS) ===
       else if (deviceId === 'reflex') {
           // --- 1. Physics Engine ---
           const Vo = inputs.Vo || 300;
           const Vr = inputs.Vr || 150;
-          const L_mm = inputs.L || 2; // Repeller Spacing
+          const L_mm = inputs.L || 2; 
           const f_GHz = inputs.f || 9;
           const Io_mA = inputs.Io || 20;
 
-          // Fundamental Constants
+          // Physics Constants
           const e = 1.6e-19;
           const m = 9.11e-31;
-          
-          // DC Velocity
           const v0_real = Math.sqrt(2 * e * Vo / m); 
           
-          // Round Trip Transit Time Calculation
-          // T' = 4 * L * v0 / (eta * (Vo + Vr)) ... approx
-          // Let's compute the number of RF cycles (N) the electron spends in drift space
-          // Physics Formula: N = (f * 4 * L * v0) / ( (e/m) * (Vo + Vr) ) ? 
-          // Simplified Proportionality for Simulation Logic:
-          // Transit time is proportional to L / sqrt(Vo) * something related to Vr
-          // We use the exact theoretical "N" to drive the "Glow Intensity"
+          // Mode Check Logic (Oscillation Condition)
           const L_m = L_mm / 1000;
           const T_round_trip = (4 * L_m * v0_real) / ((e/m)*(Vo + Vr));
           const N_cycles = T_round_trip * (f_GHz * 1e9);
-          
-          // Mode Check: Optimal is k + 0.75 (e.g., 1.75, 2.75)
           const ideal_N = Math.round(N_cycles - 0.75) + 0.75;
           const detuning = Math.abs(N_cycles - ideal_N);
           
-          // Oscillation Strength (Gaussian bell curve around optimal tuning)
-          // If detuning > 0.2 cycles, oscillation dies.
-          let oscillation_strength = Math.exp(-Math.pow(detuning/0.1, 2));
-          if (oscillation_strength < 0.01) oscillation_strength = 0;
+          // Oscillation Strength (determines if Cavity glows)
+          let oscillation_strength = Math.exp(-Math.pow(detuning/0.15, 2)); // 0.15 tolerance width
+          if (oscillation_strength < 0.05) oscillation_strength = 0;
 
-          // --- 2. Visualization Parameters ---
-          const omega_visual = 0.25; // Visual frequency
+          // --- 2. Visualization Setup ---
+          const omega_visual = 0.25; 
           const v_pixel_base = 4.0 * Math.pow(Vo/300, 0.4); 
           
-          // Repeller Deceleration Force (Visual Scale)
-          // a = F/m = e(Vo+Vr)/(m*L). 
-          // In pixels: higher (Vo+Vr) -> stronger braking -> shorter penetration
-          // higher L -> weaker braking -> deeper penetration
-          const repeller_force = (Vo + Vr) / (L_mm * 80.0); 
+          // Repeller Force: This is the "Braking Power"
+          // We tune the denominator (70.0) to make the turn-around happen clearly on screen
+          const repeller_force = (Vo + Vr) / (L_mm * 70.0); 
 
           const cavX = width * 0.3;
-          const repellerX = width * 0.85; // Fixed screen position for electrode
-          
+          const repellerX = width * 0.85; 
+
           // --- 3. Particle System ---
           if (running) {
-             // Dynamic Density based on Io
              const densityFactor = Math.min(5.0, Io_mA / 10.0);
              const reflexMaxParticles = 600 * densityFactor;
              
@@ -569,7 +556,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
                       y: cy + (Math.random() - 0.5) * 15,
                       vx: v_pixel_base,
                       base_vx: v_pixel_base,
-                      state: 'forward', // forward, drift, returning, collected
+                      state: 'forward', // States: forward -> drift -> returning -> collected
                       modulated: false,
                       type: 'neutral'
                     });
@@ -581,19 +568,20 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               particlesRef.current.forEach((p, i) => {
                 const phase = frameRef.current * omega_visual;
                 
-                // 1. FORWARD PASS (Velocity Modulation)
+                // A. FORWARD JOURNEY (Beam Acceleration)
                 if (p.state === 'forward') {
+                    // Interaction at Cavity Gap
                     if (p.x >= cavX && !p.modulated) {
-                       // Only modulate if oscillating (or assume noise start-up)
-                       // For visual aid, we always modulate a bit, but boost it if oscillating
-                       const rf_amp = 0.1 + (0.4 * oscillation_strength); 
+                       // Velocity Modulation
+                       // If oscillating, the field is strong -> strong modulation
+                       const rf_amp = 0.15 + (0.4 * oscillation_strength); 
                        const sinVal = Math.sin(phase);
                        
                        p.vx = p.vx * (1 + rf_amp * sinVal);
                        p.modulated = true;
                        p.state = 'drift';
                        
-                       // Color coding
+                       // Initial Color Coding
                        if (sinVal > 0.1) p.type = 'fast';
                        else if (sinVal < -0.1) p.type = 'slow';
                        else p.type = 'neutral';
@@ -601,35 +589,35 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
                     p.x += p.vx * timeScale;
                 }
                 
-                // 2. DRIFT & REPELLING (The turn-around)
+                // B. THE DRIFT & TURN-AROUND (The "Magic" Part)
                 else if (p.state === 'drift' || p.state === 'returning') {
-                    // Apply constant deceleration
+                    // Constant Deceleration (Braking)
+                    // This physics creates the smooth "stop and reverse" motion
                     p.vx -= repeller_force * timeScale;
                     p.x += p.vx * timeScale;
                     
-                    // Check turn-around
+                    // State Transition: When velocity drops below zero, we are returning
                     if (p.vx < 0 && p.state === 'drift') {
                         p.state = 'returning';
                     }
                     
-                    // Check collision with Repeller (if V_r is too low)
+                    // Collision Check: If Vr is too low, they hit the wall
                     if (p.x > repellerX) {
-                        p.state = 'collected'; // Hit repeller -> lost
-                        p.x = -1000; // Hide
+                        p.state = 'hit_repeller';
+                        p.x = -1000; 
                     }
                     
-                    // 3. RETURN PASS (Energy Transfer?)
+                    // C. RETURN JOURNEY (Energy Transfer)
                     if (p.x <= cavX && p.state === 'returning') {
-                        // Here we visualize the bunching.
-                        // Ideally, fast particles (Red) went deep and return LATE.
-                        // Slow particles (White) went shallow and return EARLY.
-                        // They should meet HERE.
-                        p.state = 'collected'; // Absorbed by grid or passed
+                        // Bunching Visualization:
+                        // Fast particles (went deep) and Slow particles (went shallow)
+                        // SHOULD arrive here at the same time if Tuned correctly.
+                        p.state = 'collected'; 
                     }
                 }
                 
                 // Recycle
-                if (p.x < 0 || p.state === 'collected') {
+                if (p.x < 0 || p.state === 'collected' || p.state === 'hit_repeller') {
                      particlesRef.current[i] = { 
                       x: 20, 
                       y: cy + (Math.random() - 0.5) * 15,
@@ -645,24 +633,31 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           // --- 4. Drawing ---
           
-          // Drift Tube
+          // Drift Space
           drawMetal(0, cy - 50, repellerX, 15, '#334155');
           drawMetal(0, cy + 35, repellerX, 15, '#334155');
           
+          // REPELLER (Negative Electrode)
+          ctx.fillStyle = '#ef4444'; 
+          ctx.beginPath();
+          ctx.arc(repellerX, cy, 60, 1.3 * Math.PI, 2.7 * Math.PI, true); 
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.font = '10px monospace';
+          ctx.fillText(`REPELLER (-${Vr}V)`, repellerX - 15, cy);
+
           // CAVITY (Resonator)
-          // Color depends on Oscillation Strength (Tuning)
-          // If perfectly tuned -> Bright Pink/Red. If detuned -> Gray/Dim.
-          let cavityColor;
+          // Glows only when tuned correctly
+          let cavityColor = '#475569'; // Default Off
           let glowSize = 0;
           
-          if (oscillation_strength > 0.5) {
-              cavityColor = '#f43f5e'; // Bright Red
-              glowSize = 20 * oscillation_strength;
-          } else if (oscillation_strength > 0.1) {
-              cavityColor = '#fbbf24'; // Yellow (Weak)
-              glowSize = 5;
-          } else {
-              cavityColor = '#475569'; // Off (Gray)
+          if (oscillation_strength > 0.6) {
+              cavityColor = '#f43f5e'; // Bright Red (Oscillating)
+              glowSize = 25 * oscillation_strength;
+          } else if (oscillation_strength > 0.2) {
+              cavityColor = '#facc15'; // Yellow (Weak)
+              glowSize = 10;
           }
 
           if (glowSize > 0) {
@@ -672,56 +667,56 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           drawCavity(cavX, cy, 50, 80, 'RESONATOR', cavityColor);
           ctx.shadowBlur = 0;
 
-          // REPELLER ELECTRODE (Negative Plate)
-          ctx.fillStyle = '#ef4444'; // Red usually indicates negative/danger in diagrams or active
-          ctx.beginPath();
-          // Draw a curved cup shape
-          ctx.arc(repellerX, cy, 60, 1.3 * Math.PI, 2.7 * Math.PI, true); 
-          ctx.fill();
-          
-          // Repeller Label & Voltage
-          ctx.fillStyle = '#fff';
-          ctx.textAlign = 'center';
-          ctx.font = '12px monospace';
-          ctx.fillText('REPELLER (-Vr)', repellerX - 10, cy - 70);
-          ctx.font = '10px monospace';
-          ctx.fillStyle = '#f87171';
-          ctx.fillText(`-${Vr} V`, repellerX - 10, cy - 55);
-
-          // STATUS HUD (The most important part for understanding)
+          // STATUS HUD
           ctx.fillStyle = '#fff';
           ctx.textAlign = 'left';
           ctx.font = '14px monospace';
           
-          let modeText = `N: ${N_cycles.toFixed(2)} cycles`;
-          let statusText = "";
-          let statusColor = "#fff";
+          let statusText = "NO OSCILLATION";
+          let statusColor = "#f87171";
 
           if (oscillation_strength > 0.8) {
               statusText = `OSCILLATING (Mode ${ideal_N - 0.75})`;
-              statusColor = "#4ade80"; // Green
+              statusColor = "#4ade80";
           } else if (oscillation_strength > 0.2) {
-              statusText = "WEAK OSCILLATION";
-              statusColor = "#facc15"; // Yellow
-          } else {
-              statusText = "NO OSCILLATION (Check Vr/Vo)";
-              statusColor = "#f87171"; // Red
+              statusText = "WEAK SIGNAL (Tune Vr/Vo)";
+              statusColor = "#facc15";
           }
           
-          ctx.fillText(modeText, 20, 30);
           ctx.fillStyle = statusColor;
-          ctx.fillText(statusText, 20, 50);
+          ctx.fillText(statusText, 20, 30);
+          
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = '12px monospace';
+          ctx.fillText(`Transit Cycles: ${N_cycles.toFixed(2)}`, 20, 50);
 
-          // PARTICLES
+          // PARTICLES DRAWING
           particlesRef.current.forEach(p => {
-              if (p.x > 0) { // Don't draw recycled
-                  let color = '#60a5fa'; // Blue (Forward)
+              if (p.x > 0) { 
+                  let color = '#60a5fa'; // Default Forward (Blue)
+                  let radius = 3;
+
                   if (p.state === 'drift' || p.state === 'returning') {
-                      if (p.type === 'fast') color = '#f87171'; // Red (High Energy)
-                      else if (p.type === 'slow') color = '#ffffff'; // White (Low Energy)
-                      else color = '#fbbf24'; // Amber
+                      // Color Logic based on Speed to highlight "Stop & Turn"
+                      const speed = Math.abs(p.vx);
+                      
+                      if (speed < 0.5) {
+                          // The moment of stopping (Turning Point)
+                          color = '#ffffff'; // White flash when stopping
+                          radius = 4; // Slightly bigger pop
+                      } 
+                      else if (p.vx < 0) {
+                          // Returning
+                          color = '#fbbf24'; // Amber when coming back
+                      }
+                      else {
+                          // Still going forward (drift)
+                          if (p.type === 'fast') color = '#f87171'; // Red
+                          else if (p.type === 'slow') color = '#93c5fd'; // Light Blue
+                      }
                   }
-                  drawElectron(p.x, p.y, 3, color);
+                  
+                  drawElectron(p.x, p.y, radius, color);
               }
           });
       }
