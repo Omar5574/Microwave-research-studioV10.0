@@ -412,6 +412,7 @@ export const devices = [
          { id: 'Io', label: 'Beam Current', unit: 'mA', min: 1, max: 500, def: 30, step: 1 },
          { id: 'Zo', label: 'Helix Impedance', unit: 'Ω', min: 5, max: 100, def: 10, step: 1 }, // Vital for C calc
          { id: 'Vi', label: 'Input Signal', unit: 'mW', min: 0.1, max: 1000, def: 10, step: 0.1 }, // mW is more realistic input
+          { id: 'atten', label: 'Attenuator (0=OFF, 1=ON)', unit: '', min: 0, max: 1, def: 1, step: 1 },
          { id: 'N', label: 'Circuit Length', unit: 'λ', min: 10, max: 100, def: 50, step: 1 },
          { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 50, def: 10, step: 0.1 }
        ],
