@@ -1,11 +1,10 @@
 // src/data/devices.js
 
-// ثوابت فيزيائية عامة
-const q = 1.6e-19;
+// General physical constants
 const epsilon0 = 8.85e-14; // F/cm
 const kbT = 0.0259; // Thermal voltage @ 300K
 
-// === عامل التحكم في العشوائية البصرية (للحركة الحرارية) ===
+// === Optical Randomness Control Factor (for Thermal Motion) ===
 const VISUAL_DIFFUSION_SCALE = 15.0; 
 // ==========================================================
 
