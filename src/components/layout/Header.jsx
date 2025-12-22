@@ -1,3 +1,4 @@
+// src/components/layout/Header.jsx
 import React from 'react';
 
 export function Header({ 
@@ -5,43 +6,53 @@ export function Header({
   fidelity, setFidelity,
   timeScale, setTimeScale,
   running, setRunning,
-  onChatOpen
+  onChatOpen,
+  onMenuToggle // بروب جديد لزر القائمة
 }) {
   return (
-    <header className="h-16 border-b border-slate-800 bg-gradient-to-r from-[#0a0a0f] to-[#0f1115] flex items-center justify-between px-6 z-20 shadow-lg shrink-0">
+    <header className="h-16 border-b border-slate-800 bg-gradient-to-r from-[#0a0a0f] to-[#0f1115] flex items-center justify-between px-4 md:px-6 z-20 shadow-lg shrink-0">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white shadow-xl text-xl">µW</div>
+        {/* زر القائمة للموبايل فقط */}
+        <button 
+          onClick={onMenuToggle}
+          className="md:hidden text-slate-400 hover:text-white p-1"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+
+        <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white shadow-xl text-lg md:text-xl">µW</div>
         <div>
-          <h1 className="text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Microwave Research Studio
+          <h1 className="text-sm md:text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+             <span className="md:hidden">MRS v9.4</span> {/* اسم مختصر للموبايل */}
+             <span className="hidden md:inline">Microwave Research Studio</span>
           </h1>
-          <div className="text-[10px] text-slate-500 font-mono">V9.4 REFACTORED</div>
+          <div className="hidden md:block text-[10px] text-slate-500 font-mono">V9.4 REFACTORED</div>
         </div>
       </div>
       
-      <div className="flex items-center gap-3">
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700 mr-4">
+      <div className="flex items-center gap-2 md:gap-3">
+        {/* Tab Switcher - Compact on mobile */}
+        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
           <button 
             onClick={() => setActiveTab('simulation')}
-            className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${
+            className={`px-2 md:px-3 py-1.5 text-[10px] md:text-xs font-bold rounded transition-all ${
               activeTab === 'simulation' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
-            Live Simulation
+            Sim
           </button>
           <button 
             onClick={() => setActiveTab('explanation')}
-            className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${
+            className={`px-2 md:px-3 py-1.5 text-[10px] md:text-xs font-bold rounded transition-all ${
               activeTab === 'explanation' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
-            Deep Explanation
+            Doc
           </button>
         </div>
 
-        {/* Fidelity Selector */}
-        <div className="hidden md:flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
+        {/* Fidelity & TimeScale - Hidden on Mobile */}
+        <div className="hidden lg:flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Fidelity</span>
           <select 
             value={fidelity} 
@@ -54,8 +65,7 @@ export function Header({
           </select>
         </div>
 
-        {/* Time Scale */}
-        <div className="hidden md:flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
+        <div className="hidden lg:flex items-center gap-2 bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
           <span className="text-[10px] text-slate-400 uppercase font-bold">Time</span>
           <input 
             type="range" 
@@ -66,36 +76,26 @@ export function Header({
             onChange={(e) => setTimeScale(parseFloat(e.target.value))}
             className="w-20 h-1 accent-blue-500"
           />
-          <span className="text-xs text-blue-400 font-mono w-8">{timeScale.toFixed(1)}×</span>
         </div>
 
-        {/* Chat Button */}
+        {/* Chat Button - Compact */}
         <button 
           onClick={onChatOpen}
-          className="px-4 py-2 rounded-lg font-bold transition-all shadow-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 text-sm"
+          className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-bold transition-all shadow-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 text-xs md:text-sm"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="22"></line>
-          </svg>
-          Ask µW-Expert
+          <span className="md:hidden">AI</span>
+          <span className="hidden md:inline">Ask AI</span>
         </button>
 
-        {/* Status & Control */}
-        <div className={`px-4 py-2 rounded-lg border transition-all ${
-          running ? 'border-green-500/30 bg-green-900/20 text-green-400' : 'border-yellow-500/30 bg-yellow-900/20 text-yellow-400'
-        }`}>
-          <div className="text-[10px] font-bold">{running ? "● LIVE" : "⏸ PAUSED"}</div>
-        </div>
-        
+        {/* Status & Control - Compact */}
         <button 
           onClick={() => setRunning(!running)} 
-          className={`px-5 py-2 rounded-lg font-bold transition-all shadow-lg text-sm ${
+          className={`w-8 h-8 md:w-auto md:px-5 md:py-2 flex items-center justify-center rounded-lg font-bold transition-all shadow-lg text-xs ${
             running ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-green-600 hover:bg-green-500 text-white'
           }`}
         >
-          {running ? "Pause" : "Resume"}
+          {running ? <span className="md:hidden">⏸</span> : <span className="md:hidden">▶</span>}
+          <span className="hidden md:inline">{running ? "Pause" : "Resume"}</span>
         </button>
       </div>
     </header>
