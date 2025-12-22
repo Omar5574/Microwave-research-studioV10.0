@@ -506,14 +506,14 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           });
       }
         
-    // === REFLEX KLYSTRON (LONG DRIFT & DEEP REFLEX) ===
+   // === REFLEX KLYSTRON (FINAL: Physics + Dynamic Current Density) ===
       else if (deviceId === 'reflex') {
           // 1. Setup Constants
           const Vo = inputs.Vo || 300;
           const Vr = inputs.Vr || 150;
           const f_GHz = inputs.f || 9;
           
-          // Physics: Check Oscillation Mode
+          // Physics: Oscillation Mode & Strength
           const e = 1.6e-19;
           const m = 9.11e-31;
           const v0_real = Math.sqrt(2 * e * Vo / m); 
@@ -528,30 +528,32 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           // 2. Visualization Parameters
           const omega_visual = 0.25;
-          
-          // Base Speed (v0)
           const v_pixel_base = 5.0 * Math.pow(Vo/300, 0.5); 
           
-          // Positions
-          const cavX = width * 0.2; // Keep cavity to the left to maximize drift space
-          const repellerX = width * 0.9; // Repeller at the far right
+          // Force Logic (Physics Corrected)
+          // Low Vr -> Weak Force -> Long Distance
+          const visual_distance_factor = 14000.0; // Tuning for screen width
+          const repField = (Vo + Vr) / visual_distance_factor; 
+
+          const cavX = width * 0.2; 
+          const repellerX = width * 0.9; 
           const drift_length_px = repellerX - cavX;
 
-          // --- PHYSICS TUNING FOR "LONG DISTANCE" ---
-          // Deceleration a = F/m = e(Vo+Vr)/(mL)
-          // Distance S = v^2 / 2a
-          // We want S to be approx 80% of drift_length_px at default settings.
-          // Adjusting the divisor (K) to weaken the braking force visually.
-          const K_visual = 14000.0; 
-          const repField = (Vo + Vr) / K_visual; 
-
-          // 3. Particle System
+          // --- 3. Particle System (DYNAMIC BEAM CURRENT) ---
           if (running) {
-             const densityFactor = Math.min(5.0, (inputs.Io || 20) / 10.0);
-             const maxParticles = 600 * densityFactor;
+             // Reflex Io is usually 10-100mA. 
+             // We normalize around 20mA.
+             // If Io = 100mA -> Factor = 5.0 (Very Dense)
+             // If Io = 10mA -> Factor = 0.5 (Sparse)
+             const current_Io = inputs.Io || 20;
+             const densityFactor = Math.min(6.0, current_Io / 20.0);
              
-             if (particlesRef.current.length < maxParticles) {
-                 const injectionCount = Math.ceil(1.5 * densityFactor);
+             const reflexMaxParticles = 800 * densityFactor; // Higher max for dense beam
+             
+             if (particlesRef.current.length < reflexMaxParticles) {
+                 // Injection rate scales with density
+                 const injectionCount = Math.ceil(2 * densityFactor);
+                 
                  for (let j = 0; j < injectionCount; j++) {
                     particlesRef.current.push({ 
                       x: 20, 
@@ -569,7 +571,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               particlesRef.current.forEach((p, i) => {
                 const phase = frameRef.current * omega_visual;
                 
-                // A. Forward Pass (Cavity Interaction)
+                // A. Forward Pass
                 if (p.vx > 0 && Math.abs(p.x - cavX) < 15 && !p.modulated) {
                     const rf_amp = 0.2 + (0.3 * oscillation_strength); 
                     const sinVal = Math.sin(phase);
@@ -582,27 +584,16 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
                     else p.type = 'neutral';
                 }
 
-                // B. Drift Space (Deceleration)
+                // B. Drift & Deceleration
                 if (p.x > cavX) {
-                    // Apply continuous braking force
                     p.vx -= repField * timeScale;
                 }
                 
-                // Move
                 p.x += p.vx * timeScale;
 
-                // C. Boundaries & Recycle
-                
-                // 1. Hit Repeller? (If Vr is too low, they don't stop in time)
-                if (p.x > repellerX) {
-                    // Absorb/Reset
-                    resetParticle(p, v_pixel_base);
-                }
-                
-                // 2. Return to Cathode? (Completed the loop)
-                else if (p.x < 20 && p.vx < 0) {
-                    resetParticle(p, v_pixel_base);
-                }
+                // C. Boundaries
+                if (p.x > repellerX) resetParticle(p, v_pixel_base); // Hit Repeller
+                else if (p.x < 20 && p.vx < 0) resetParticle(p, v_pixel_base); // Returned
               });
           }
 
@@ -629,13 +620,13 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           ctx.textAlign = 'center';
           ctx.font = '10px monospace';
           
-          // Distance Helper Text
-          let driftStatus = "NORMAL DRIFT";
-          // Check theoretical stopping distance roughly
+          // Drift Status Calculation
+          // Theoretical stopping distance s = v^2 / 2a
           const stop_dist_ratio = (v_pixel_base*v_pixel_base) / (2 * repField * drift_length_px);
-          
-          if (stop_dist_ratio > 0.9) driftStatus = "NEAR REPELLER (Long)";
-          else if (stop_dist_ratio < 0.4) driftStatus = "NEAR CAVITY (Short)";
+          let driftStatus = "NORMAL DRIFT";
+          if (stop_dist_ratio > 0.95) driftStatus = "TOO LONG (Hit Repeller)";
+          else if (stop_dist_ratio > 0.7) driftStatus = "LONG DRIFT (Low Vr)";
+          else if (stop_dist_ratio < 0.4) driftStatus = "SHORT DRIFT (High Vr)";
           
           ctx.fillText(`REPELLER (-${Vr}V)`, repellerX - 15, cy);
           ctx.fillStyle = '#fca5a5';
@@ -671,21 +662,16 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               ctx.fillText("NO OSCILLATION", 20, 30);
           }
 
-          // Draw Particles
+          // Particles
           particlesRef.current.forEach(p => {
               let color = '#60a5fa'; 
               let radius = 3;
               
               if (p.x > cavX) {
-                 // The "Turn-Around" Highlight
-                 if (Math.abs(p.vx) < 0.5) { 
-                     color = '#ffffff'; radius = 5; // Bright White Pop at the far end
-                 } 
+                 if (Math.abs(p.vx) < 0.5) { color = '#ffffff'; radius = 5; } // Turn-around flash
                  else if (p.vx < 0) { color = '#fbbf24'; } 
-                 else {
-                     if (p.type === 'fast') color = '#f87171';
-                     else if (p.type === 'slow') color = '#93c5fd';
-                 }
+                 else if (p.type === 'fast') color = '#f87171';
+                 else if (p.type === 'slow') color = '#93c5fd';
               }
               
               drawElectron(p.x, p.y, radius, color);
