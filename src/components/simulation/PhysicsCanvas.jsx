@@ -18,7 +18,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
     const ctx = canvas.getContext('2d');
     let animationFrameId;
 
-    // ========== DRAWING HELPERS (أدوات الرسم) ==========
+    // ========== DRAWING HELPERS ==========
     
     const drawLabel = (text, x, y, color = '#ffffff', align = 'center', font = '10px monospace') => {
         ctx.fillStyle = color;
@@ -27,7 +27,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
         ctx.fillText(text, x, y);
     };
 
-    // دالة رسم طبقات أشباه الموصلات (محسنة)
+    // Semiconductor layer plotting function (improved)
     const drawLayer = (x, y, w, h, color, label, subLabel) => {
         ctx.fillStyle = color;
         ctx.fillRect(x, y, w, h);
@@ -38,7 +38,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
         if (subLabel) drawLabel(subLabel, x + w/2, y + h - 10, 'rgba(255,255,255,0.6)');
     };
 
-    // دالة لرسم شبه المنحرف (لهيكل Mesa في Tunnel Diode)
+    // Function for drawing a trapezoid (for a Mesa structure in a Tunnel Diode)
     const drawTrapezoid = (x, y, wTop, wBottom, h, color) => {
         ctx.beginPath();
         ctx.moveTo(x + (wBottom - wTop) / 2, y);
