@@ -8,15 +8,15 @@ export function FFTDisplay({ deviceId, inputs }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // إعداد الأبعاد
+    // Setting dimensions
     canvas.width = 300;
     canvas.height = 150;
 
-    // تنظيف الـ Canvas بخلفية داكنة جداً
+    // Cleaning the canvas with a very dark background
     ctx.fillStyle = '#020617';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 1. رسم الشبكة (Grid) بلون باهت
+   // 1. Draw the grid in a pale color
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
@@ -28,8 +28,9 @@ export function FFTDisplay({ deviceId, inputs }) {
     }
     ctx.stroke();
 
-    // 2. حساب موقع القمة (Peak) بناءً على التردد المدخل
-    // نفترض أن التردد المتاح في المدخلات هو f أو freq
+    // 2. Calculate the peak position based on the input frequency
+
+// We assume the available frequency in the input is f or freq
     let freq = inputs?.f || inputs?.freq || 5; // قيمة افتراضية 5 GHz
     if (deviceId === 'magnetron' && inputs?.tune !== undefined) {
   freq = freq * (1 + inputs.tune / 100);
@@ -37,26 +38,26 @@ export function FFTDisplay({ deviceId, inputs }) {
     const maxFreqDisplay = 20; // أقصى تردد معروض على الشاشة
     const peakX = (freq / maxFreqDisplay) * canvas.width;
 
-    // 3. رسم منحنى الطيف (Spectrum Curve)
+    // 3. Drawing the Spectrum Curve
     ctx.beginPath();
     ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
 
-    // إنشاء تدرج لوني للمنحنى (Glow effect)
+    // Create a color gradient for the curve (Glow effect)
     const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
     gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');   // شفاف من الأسفل
     gradient.addColorStop(1, 'rgba(239, 68, 68, 0.3)'); // أحمر خفيف في الأعلى
 
     for (let x = 0; x < canvas.width; x++) {
-      // قاعدة الضجيج (Noise Floor)
+      // Noise Floor
       let noise = Math.random() * 5;
       
-      // معادلة القمة (Lorentzian/Gaussian distribution)
-      // كلما اقترب x من الـ peakX، يزداد الارتفاع بشكل حاد
+      // (Lorentzian/Gaussian distribution)
+    //As x approaches peakX, the rise increases sharply.
       let distance = Math.abs(x - peakX);
       let peakHeight = 120 / (1 + Math.pow(distance / 3, 2)); // قمة حادة
       
-      // إضافة توافقية ثانية (Second Harmonic) بوزن أقل
+      //Adding a second harmonic with a lighter weight
       let harmonic2 = 40 / (1 + Math.pow(Math.abs(x - peakX * 2) / 3, 2));
 
       let y = canvas.height - 20 - peakHeight - harmonic2 - noise;
@@ -65,17 +66,17 @@ export function FFTDisplay({ deviceId, inputs }) {
       else ctx.lineTo(x, y);
     }
 
-    // رسم الخط الخارجي (النبضة)
+    // Drawing the outer line (pulse)
     ctx.strokeStyle = '#ef4444'; 
     ctx.stroke();
 
-    // ملء المساحة تحت المنحنى بالتدرج
+    // Fill the space under the curve gradually
     ctx.lineTo(canvas.width, canvas.height);
     ctx.lineTo(0, canvas.height);
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // 4. إضافة نصوص توضيحية احترافية
+    // 4. Add professional explanatory text
     ctx.fillStyle = '#ef4444';
     ctx.font = 'bold 10px Inter, sans-serif';
     ctx.fillText(`${freq} GHz`, peakX - 15, canvas.height - 130);
