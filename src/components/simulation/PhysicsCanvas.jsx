@@ -130,7 +130,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
         }
       }
 
-     // ========== TWO-CAVITY KLYSTRON (SMOOTHER MOTION) ==========
+    // === TWO-CAVITY KLYSTRON (FINAL: Smooth Motion + Dynamic Current) ===
       if (deviceId === 'klystron2') {
           // --- 1. Physics Engine Calculation ---
           const Vo_kv = inputs.Vo || 10;
@@ -144,12 +144,9 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           const d_mm = inputs.d || 3;
           const d_meters = d_mm / 1000;
           const transit_angle_rad = (omega_real * d_meters) / v0_real; 
-          
           let beta = 1.0;
           const half_theta = transit_angle_rad / 2;
-          if (Math.abs(half_theta) > 0.0001) {
-              beta = Math.sin(half_theta) / half_theta;
-          }
+          if (Math.abs(half_theta) > 0.0001) beta = Math.sin(half_theta) / half_theta;
 
           // Bunching Parameter (X)
           const L_cm = inputs.L || 5;
@@ -159,7 +156,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           
           const X_real = (beta * Vi_real / (2 * Vo_real)) * drift_angle_rad;
 
-          // Bessel J1 approximation
+          // Output Glow (Bessel J1 approx)
           let J1_X = 0;
           if (X_real < 0.1) J1_X = X_real/2;
           else J1_X = (X_real/2) - (Math.pow(X_real,3)/16) + (Math.pow(X_real,5)/384);
@@ -167,20 +164,25 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           // --- 2. Visualization Mapping ---
           const v_pixel_base = 3.0 * Math.pow(Vo_kv, 0.4); 
-          
           const buncherX = width * 0.2;
           const catcherX = buncherX + (inputs.L || 5) * 50; 
           
-          // Modulation Depth
           const mod_depth = (beta * Vi_real) / (2 * Vo_real);
           const omega_visual = 0.15 * f_GHz; 
 
-          // --- 3. Particle System ---
+          // --- 3. Particle System (DYNAMIC DENSITY FIXED) ---
           if (running) {
-            const klystronMaxParticles = 400 * (inputs.Io/200); 
+            // معادلة الكثافة: كل ما التيار يزيد، العدد يزيد
+            const current_Io = inputs.Io || 100;
+            // Density Factor: 1.0 at 50mA, goes up to 6.0 at 300mA+
+            const densityFactor = Math.min(6.0, current_Io / 50.0);
+            
+            const klystronMaxParticles = 1000 * densityFactor; 
             
             if (particlesRef.current.length < klystronMaxParticles) {
-                const injectionCount = Math.ceil(inputs.Io / 100); 
+                // Injection rate increases with density
+                const injectionCount = Math.ceil(3 * densityFactor);
+                
                 for (let j = 0; j < injectionCount; j++) {
                   particlesRef.current.push({
                       x: 0 - Math.random() * 10, 
@@ -199,22 +201,19 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
                 if (!p.modulated && p.x >= buncherX) {
                   const phase = frameRef.current * omega_visual;
                   
-                  // التعديل هنا: قللنا معامل التضخيم من 150 لـ 60 عشان السرعات ما تشطحش جامد
+                  // Reduced visual factor for smoothness (was 150 -> now 60)
                   const visual_mod_factor = mod_depth * 60; 
                   
                   const sinVal = Math.sin(phase);
                   let v_mod = p.base_vx * (1 + visual_mod_factor * sinVal);
                   
-                  // التعديل هنا: رفعنا الحد الأدنى للسرعة لـ 0.6 (60%) بدل 0.3
-                  // عشان الإلكترون البطيء يفضل يجري وميبقاش "بيزحف"
+                  // Clamping: Min speed is 60% of base (Prevents "Crawling")
                   if (v_mod < p.base_vx * 0.6) v_mod = p.base_vx * 0.6; 
-                  // برضه بنحط سقف للسرعة العالية عشان ما يطيرش
                   if (v_mod > p.base_vx * 1.4) v_mod = p.base_vx * 1.4;
 
                   p.vx = v_mod;
                   p.modulated = true;
                   
-                  // Color coding
                   if (sinVal > 0.1) p.type = 'fast'; 
                   else if (sinVal < -0.1) p.type = 'slow'; 
                   else p.type = 'neutral';
@@ -249,12 +248,12 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           drawMetal(0, cy - 60, Math.max(width, catcherX + 100), 20, '#334155');
           drawMetal(0, cy + 40, Math.max(width, catcherX + 100), 20, '#334155');
           
-          // BUNCHER
+          // Buncher
           const in_signal = Math.sin(frameRef.current * omega_visual);
           const buncherColor = in_signal > 0 ? '#60a5fa' : '#3b82f6';
           drawCavity(buncherX, cy, 60, 90, 'RF IN', buncherColor);
 
-          // CATCHER
+          // Catcher
           const outOpacity = 0.2 + 0.8 * output_glow_intensity;
           const catcherGlow = `rgba(244, 63, 94, ${outOpacity})`; 
           
@@ -266,33 +265,27 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           }
           drawCavity(catcherX, cy, 60, 90, 'RF OUT', catcherGlow);
 
-          // COLLECTOR
+          // Collector & HUD
           const collectorX = Math.max(width - 60, catcherX + 100);
           drawMetal(collectorX, cy - 50, 60, 100, '#1e293b');
-          ctx.fillStyle = '#94a3b8';
-          ctx.fillText('COLLECTOR', collectorX + 5, cy + 5);
+          ctx.fillStyle = '#94a3b8'; ctx.fillText('COLLECTOR', collectorX + 5, cy + 5);
 
-          // INFO HUD
-          ctx.fillStyle = '#fff';
-          ctx.font = '14px monospace';
+          ctx.fillStyle = '#fff'; ctx.font = '14px monospace';
           ctx.fillText(`Bunching Param (X): ${X_real.toFixed(3)}`, 20, 30);
           
-          let statusText = "";
-          let statusColor = "#94a3b8";
-          
+          let statusText = ""; let statusColor = "#94a3b8";
           if (X_real < 1.0) { statusText = "UNDER-BUNCHED"; statusColor = "#facc15"; }
           else if (X_real >= 1.8 && X_real <= 1.9) { statusText = "OPTIMAL BUNCHING"; statusColor = "#4ade80"; }
           else if (X_real > 2.0) { statusText = "OVER-BUNCHED"; statusColor = "#f87171"; }
           else { statusText = "GOOD BUNCHING"; statusColor = "#60a5fa"; }
           
-          ctx.fillStyle = statusColor;
-          ctx.fillText(statusText, 20, 50);
+          ctx.fillStyle = statusColor; ctx.fillText(statusText, 20, 50);
 
           // Electrons
           particlesRef.current.forEach(p => {
               let color = '#60a5fa'; 
-              if (p.type === 'fast') color = '#ef4444'; // Red
-              if (p.type === 'slow') color = '#e2e8f0'; // White (Now moves faster)
+              if (p.type === 'fast') color = '#ef4444'; 
+              if (p.type === 'slow') color = '#e2e8f0'; 
               drawElectron(p.x, p.y, 3, color);
           });
       }
