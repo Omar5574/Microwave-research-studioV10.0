@@ -506,15 +506,14 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           });
       }
         
-     // === REFLEX KLYSTRON (SMOOTH MOTION & CORRECT PHYSICS) ===
+     // === REFLEX KLYSTRON (LONG DRIFT & DEEP REFLEX) ===
       else if (deviceId === 'reflex') {
           // 1. Setup Constants
           const Vo = inputs.Vo || 300;
           const Vr = inputs.Vr || 150;
           const f_GHz = inputs.f || 9;
           
-          // Physics Calculation for Oscillation (Mode Check)
-          // We keep this to know if we should "glow" the cavity
+          // Physics: Check Oscillation Mode
           const e = 1.6e-19;
           const m = 9.11e-31;
           const v0_real = Math.sqrt(2 * e * Vo / m); 
@@ -529,17 +528,22 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
 
           // 2. Visualization Parameters
           const omega_visual = 0.25;
-          const v_pixel_base = 5.0 * Math.pow(Vo/300, 0.5); // Base speed
           
-          const cavX = width * 0.25; // Cavity position
-          const repellerX = width * 0.9; // Repeller position
+          // Base Speed (v0)
+          const v_pixel_base = 5.0 * Math.pow(Vo/300, 0.5); 
           
-          // --- THE MAGIC FORMULA (CORRECTED) ---
-          // Repeller Field Force (Deceleration)
-          // High Vr -> Strong Field -> High Deceleration -> Short Path
-          // Low Vr -> Weak Field -> Low Deceleration -> Long Path
-          // We adjust the constant '4000.0' to tune the visual look
-          const repField = (Vo + Vr) / 4000.0; 
+          // Positions
+          const cavX = width * 0.2; // Keep cavity to the left to maximize drift space
+          const repellerX = width * 0.9; // Repeller at the far right
+          const drift_length_px = repellerX - cavX;
+
+          // --- PHYSICS TUNING FOR "LONG DISTANCE" ---
+          // Deceleration a = F/m = e(Vo+Vr)/(mL)
+          // Distance S = v^2 / 2a
+          // We want S to be approx 80% of drift_length_px at default settings.
+          // Adjusting the divisor (K) to weaken the braking force visually.
+          const K_visual = 14000.0; 
+          const repField = (Vo + Vr) / K_visual; 
 
           // 3. Particle System
           if (running) {
@@ -565,9 +569,9 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               particlesRef.current.forEach((p, i) => {
                 const phase = frameRef.current * omega_visual;
                 
-                // A. Apply modulation at the cavity gap (Forward pass only)
+                // A. Forward Pass (Cavity Interaction)
                 if (p.vx > 0 && Math.abs(p.x - cavX) < 15 && !p.modulated) {
-                    const rf_amp = 0.2 + (0.3 * oscillation_strength); // Modulate more if tuned
+                    const rf_amp = 0.2 + (0.3 * oscillation_strength); 
                     const sinVal = Math.sin(phase);
                     
                     p.vx = p.vx * (1 + rf_amp * sinVal);
@@ -578,30 +582,30 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
                     else p.type = 'neutral';
                 }
 
-                // B. Repeller Field Logic (The "Smooth" Physics)
+                // B. Drift Space (Deceleration)
                 if (p.x > cavX) {
-                    // Constant deceleration implies parabolic path (projectile motion)
+                    // Apply continuous braking force
                     p.vx -= repField * timeScale;
                 }
                 
-                // Move particle
+                // Move
                 p.x += p.vx * timeScale;
 
-                // C. Collision / Recycle Logic
+                // C. Boundaries & Recycle
                 
-                // 1. If Vr is too low, particle hits Repeller (doesn't turn back)
+                // 1. Hit Repeller? (If Vr is too low, they don't stop in time)
                 if (p.x > repellerX) {
+                    // Absorb/Reset
                     resetParticle(p, v_pixel_base);
                 }
                 
-                // 2. If particle returns past the start (Collected)
+                // 2. Return to Cathode? (Completed the loop)
                 else if (p.x < 20 && p.vx < 0) {
                     resetParticle(p, v_pixel_base);
                 }
               });
           }
 
-          // Helper to reset particle
           function resetParticle(p, v_base) {
               p.x = 20;
               p.y = cy + (Math.random() - 0.5) * 15;
@@ -615,17 +619,27 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           drawMetal(0, cy - 50, repellerX, 15, '#334155');
           drawMetal(0, cy + 35, repellerX, 15, '#334155');
           
-          // Repeller
+          // Repeller Visuals
           ctx.fillStyle = '#ef4444'; 
           ctx.beginPath();
           ctx.arc(repellerX, cy, 60, 1.3 * Math.PI, 2.7 * Math.PI, true); 
           ctx.fill();
           
-          // Text
           ctx.fillStyle = '#fff';
           ctx.textAlign = 'center';
           ctx.font = '10px monospace';
+          
+          // Distance Helper Text
+          let driftStatus = "NORMAL DRIFT";
+          // Check theoretical stopping distance roughly
+          const stop_dist_ratio = (v_pixel_base*v_pixel_base) / (2 * repField * drift_length_px);
+          
+          if (stop_dist_ratio > 0.9) driftStatus = "NEAR REPELLER (Long)";
+          else if (stop_dist_ratio < 0.4) driftStatus = "NEAR CAVITY (Short)";
+          
           ctx.fillText(`REPELLER (-${Vr}V)`, repellerX - 15, cy);
+          ctx.fillStyle = '#fca5a5';
+          ctx.fillText(driftStatus, repellerX - 15, cy + 15);
 
           // Cavity Glow
           let cavityColor = '#475569'; 
@@ -645,7 +659,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           drawCavity(cavX, cy, 50, 80, 'RESONATOR', cavityColor);
           ctx.shadowBlur = 0;
 
-          // Status HUD
+          // HUD
           ctx.fillStyle = '#fff';
           ctx.textAlign = 'left';
           ctx.font = '14px monospace';
@@ -662,12 +676,16 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
               let color = '#60a5fa'; 
               let radius = 3;
               
-              // Visual flair for the turn-around
               if (p.x > cavX) {
-                 if (Math.abs(p.vx) < 0.5) { color = '#ffffff'; radius = 4; } // White flash at stop
-                 else if (p.vx < 0) { color = '#fbbf24'; } // Amber returning
-                 else if (p.type === 'fast') color = '#f87171';
-                 else if (p.type === 'slow') color = '#93c5fd';
+                 // The "Turn-Around" Highlight
+                 if (Math.abs(p.vx) < 0.5) { 
+                     color = '#ffffff'; radius = 5; // Bright White Pop at the far end
+                 } 
+                 else if (p.vx < 0) { color = '#fbbf24'; } 
+                 else {
+                     if (p.type === 'fast') color = '#f87171';
+                     else if (p.type === 'slow') color = '#93c5fd';
+                 }
               }
               
               drawElectron(p.x, p.y, radius, color);
