@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai"; 
+
 
 // Data & Components imports
 import { devices } from './data/devices';
