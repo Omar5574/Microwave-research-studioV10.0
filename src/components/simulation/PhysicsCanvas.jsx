@@ -506,7 +506,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           });
       }
         
-       // === REFLEX KLYSTRON (TUNED FOR DEEP DRIFT) ===
+      // === REFLEX KLYSTRON (TUNED FOR DEEP DRIFT) ===
       else if (deviceId === 'reflex') {
           // --- 1. Physics Engine ---
           const Vo = inputs.Vo || 300;
