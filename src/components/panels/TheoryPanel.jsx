@@ -5,15 +5,15 @@ export function TheoryPanel({
   device, 
   safeInputs, 
   mathMode, 
-  setMathMode,
-  showWaveform,
-  setShowWaveform,
-  showFFT,
-  setShowFFT
+  setMathMode, 
+  showWaveform, 
+  setShowWaveform, 
+  showFFT, 
+  setShowFFT 
 }) {
   return (
-   // Edit: w-full for mobile and w-96 for desktop
-    // Edit: The border is at the top on mobile and on the sides on desktop
+    // Modified: w-full for mobile, w-96 for desktop
+    // Modified: Top border on mobile, left border on desktop
     <div className="w-full md:w-96 bg-[#0a0a0a] border-t md:border-t-0 md:border-l border-slate-800 flex flex-col shrink-0">
       {/* Theory Section */}
       <div className="p-4 border-b border-slate-800 shrink-0">
