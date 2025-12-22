@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 import { devices } from './data/devices';
 import { Sidebar } from './components/layout/Sidebar';
