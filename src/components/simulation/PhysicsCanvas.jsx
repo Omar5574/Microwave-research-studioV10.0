@@ -506,7 +506,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           });
       }
         
-     // === REFLEX KLYSTRON (LONG DRIFT & DEEP REFLEX) ===
+    // === REFLEX KLYSTRON (LONG DRIFT & DEEP REFLEX) ===
       else if (deviceId === 'reflex') {
           // 1. Setup Constants
           const Vo = inputs.Vo || 300;
