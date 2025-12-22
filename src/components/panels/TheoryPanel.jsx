@@ -5,16 +5,18 @@ export function TheoryPanel({
   device, 
   safeInputs, 
   mathMode, 
-  setMathMode, 
-  showWaveform, 
-  setShowWaveform, 
-  showFFT, 
-  setShowFFT 
+  setMathMode,
+  showWaveform,
+  setShowWaveform,
+  showFFT,
+  setShowFFT
 }) {
   return (
-    // Modified: w-full for mobile, w-96 for desktop
-    // Modified: Top border on mobile, left border on desktop
+    // MODIFIED: Responsive layout configuration
+    // 1. 'w-full md:w-96': Full width on mobile, fixed width on desktop
+    // 2. 'border-t md:border-t-0 md:border-l': Top border on mobile, Left border on desktop
     <div className="w-full md:w-96 bg-[#0a0a0a] border-t md:border-t-0 md:border-l border-slate-800 flex flex-col shrink-0">
+      
       {/* Theory Section */}
       <div className="p-4 border-b border-slate-800 shrink-0">
         <div className="flex items-center justify-between mb-3">
@@ -55,6 +57,7 @@ export function TheoryPanel({
       </div>
 
       {/* Live Calculations */}
+      {/* MODIFIED: Added 'max-h-40 md:max-h-full' to allow scrolling on mobile without taking too much space */}
       <div className="flex-1 p-4 overflow-y-auto custom-scrollbar max-h-40 md:max-h-full">
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Live Parameters</h3>
         <div className="space-y-2">
