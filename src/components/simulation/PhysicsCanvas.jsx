@@ -506,94 +506,225 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           });
       }
         
-        // === REFLEX KLYSTRON ===
-        else if (deviceId === 'reflex') {
-            const maxParticles = Math.floor(600 * particleDensity);
-          
-            // Constants for visual modulation
-            const omega_visual = 0.2;
-            
-            if (running && particlesRef.current.length < maxParticles) {
-              particlesRef.current.push({ 
-                x: 100, 
-                y: cy,
-                vx: 5 + (inputs.Vo || 600) * 0.005,
-                base_vx: 5 + (inputs.Vo || 600) * 0.005, // Store base velocity
-                phase: Math.random() * Math.PI * 2,
-                type: 'neutral',
-                modulated: false
-              });
-            }
-            const cavX = width * 0.35;
-            const repX = width * 0.75;
-            const repField = (inputs.Vr || 350) * 0.003;
-  
-            if (running) {
-              particlesRef.current.forEach((p, i) => {
-                // Apply modulation at the cavity gap (only on the way forward)
-                if (p.vx > 0 && Math.abs(p.x - cavX) < 10 && !p.modulated) {
-                   const phase = frameRef.current * omega_visual;
-                   const sinVal = Math.sin(phase);
-                   
-                   // Apply velocity modulation
-                   const modDepth = 0.3; 
-                   p.vx = p.vx * (1 + modDepth * sinVal);
-                   p.modulated = true;
-  
-                   if (sinVal > 0.1) p.type = 'fast'; 
-                   else if (sinVal < -0.1) p.type = 'slow'; 
-                   else p.type = 'neutral';
-                }
-  
-                // Repeller Field Logic (Physics)
-                if (p.x > cavX) {
-                  // Electrons slow down as they approach repeller
-                  p.vx -= repField * timeScale;
-                }
-                
-                p.x += p.vx * timeScale;
-                
-                // Remove if it returns past the start or hits boundaries
-                if (p.x < 80 && p.vx < 0) {
-                  particlesRef.current[i] = { 
-                    x: 100, 
-                    y: cy, 
-                    vx: 5 + (inputs.Vo || 600) * 0.005,
-                    base_vx: 5 + (inputs.Vo || 600) * 0.005,
-                    phase: Math.random() * Math.PI * 2,
-                    type: 'neutral',
-                    modulated: false
-                  };
-                }
-              });
-            }
-  
-            // Draw
-            drawMetal(0, cy - 50, width, 15, 'steel');
-            drawMetal(0, cy + 35, width, 15, 'steel');
-            drawCavity(cavX, cy, 50, 70, 'RESONATOR');
-            
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath();
-            ctx.arc(repX, cy, 60, 1.2 * Math.PI, 1.8 * Math.PI);
-            ctx.lineTo(repX, cy);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('REPELLER', repX, cy - 70);
-  
-            particlesRef.current.forEach(p => {
-              let color = '#60a5fa'; // Default Blue
-              if (p.type === 'fast') color = '#f87171'; // Red
-              if (p.type === 'slow') color = '#cbd5e1'; // Dimmed White
-              
-              const r = (p.vx < 0 && p.x < cavX + 50) ? 3.5 : 3.0;
-              drawElectron(p.x, p.y, r, color);
-            });
-        }
+        // === REFLEX KLYSTRON (PHYSICS ACCURATE) ===
+      else if (deviceId === 'reflex') {
+          // --- 1. Physics Engine ---
+          const Vo = inputs.Vo || 300;
+          const Vr = inputs.Vr || 150;
+          const L_mm = inputs.L || 2; // Repeller Spacing
+          const f_GHz = inputs.f || 9;
+          const Io_mA = inputs.Io || 20;
 
+          // Fundamental Constants
+          const e = 1.6e-19;
+          const m = 9.11e-31;
+          
+          // DC Velocity
+          const v0_real = Math.sqrt(2 * e * Vo / m); 
+          
+          // Round Trip Transit Time Calculation
+          // T' = 4 * L * v0 / (eta * (Vo + Vr)) ... approx
+          // Let's compute the number of RF cycles (N) the electron spends in drift space
+          // Physics Formula: N = (f * 4 * L * v0) / ( (e/m) * (Vo + Vr) ) ? 
+          // Simplified Proportionality for Simulation Logic:
+          // Transit time is proportional to L / sqrt(Vo) * something related to Vr
+          // We use the exact theoretical "N" to drive the "Glow Intensity"
+          const L_m = L_mm / 1000;
+          const T_round_trip = (4 * L_m * v0_real) / ((e/m)*(Vo + Vr));
+          const N_cycles = T_round_trip * (f_GHz * 1e9);
+          
+          // Mode Check: Optimal is k + 0.75 (e.g., 1.75, 2.75)
+          const ideal_N = Math.round(N_cycles - 0.75) + 0.75;
+          const detuning = Math.abs(N_cycles - ideal_N);
+          
+          // Oscillation Strength (Gaussian bell curve around optimal tuning)
+          // If detuning > 0.2 cycles, oscillation dies.
+          let oscillation_strength = Math.exp(-Math.pow(detuning/0.1, 2));
+          if (oscillation_strength < 0.01) oscillation_strength = 0;
+
+          // --- 2. Visualization Parameters ---
+          const omega_visual = 0.25; // Visual frequency
+          const v_pixel_base = 4.0 * Math.pow(Vo/300, 0.4); 
+          
+          // Repeller Deceleration Force (Visual Scale)
+          // a = F/m = e(Vo+Vr)/(m*L). 
+          // In pixels: higher (Vo+Vr) -> stronger braking -> shorter penetration
+          // higher L -> weaker braking -> deeper penetration
+          const repeller_force = (Vo + Vr) / (L_mm * 80.0); 
+
+          const cavX = width * 0.3;
+          const repellerX = width * 0.85; // Fixed screen position for electrode
+          
+          // --- 3. Particle System ---
+          if (running) {
+             // Dynamic Density based on Io
+             const densityFactor = Math.min(5.0, Io_mA / 10.0);
+             const reflexMaxParticles = 600 * densityFactor;
+             
+             if (particlesRef.current.length < reflexMaxParticles) {
+                 const injectionCount = Math.ceil(1.5 * densityFactor);
+                 for (let j = 0; j < injectionCount; j++) {
+                    particlesRef.current.push({ 
+                      x: 20, 
+                      y: cy + (Math.random() - 0.5) * 15,
+                      vx: v_pixel_base,
+                      base_vx: v_pixel_base,
+                      state: 'forward', // forward, drift, returning, collected
+                      modulated: false,
+                      type: 'neutral'
+                    });
+                 }
+             }
+          }
+
+          if (running) {
+              particlesRef.current.forEach((p, i) => {
+                const phase = frameRef.current * omega_visual;
+                
+                // 1. FORWARD PASS (Velocity Modulation)
+                if (p.state === 'forward') {
+                    if (p.x >= cavX && !p.modulated) {
+                       // Only modulate if oscillating (or assume noise start-up)
+                       // For visual aid, we always modulate a bit, but boost it if oscillating
+                       const rf_amp = 0.1 + (0.4 * oscillation_strength); 
+                       const sinVal = Math.sin(phase);
+                       
+                       p.vx = p.vx * (1 + rf_amp * sinVal);
+                       p.modulated = true;
+                       p.state = 'drift';
+                       
+                       // Color coding
+                       if (sinVal > 0.1) p.type = 'fast';
+                       else if (sinVal < -0.1) p.type = 'slow';
+                       else p.type = 'neutral';
+                    }
+                    p.x += p.vx * timeScale;
+                }
+                
+                // 2. DRIFT & REPELLING (The turn-around)
+                else if (p.state === 'drift' || p.state === 'returning') {
+                    // Apply constant deceleration
+                    p.vx -= repeller_force * timeScale;
+                    p.x += p.vx * timeScale;
+                    
+                    // Check turn-around
+                    if (p.vx < 0 && p.state === 'drift') {
+                        p.state = 'returning';
+                    }
+                    
+                    // Check collision with Repeller (if V_r is too low)
+                    if (p.x > repellerX) {
+                        p.state = 'collected'; // Hit repeller -> lost
+                        p.x = -1000; // Hide
+                    }
+                    
+                    // 3. RETURN PASS (Energy Transfer?)
+                    if (p.x <= cavX && p.state === 'returning') {
+                        // Here we visualize the bunching.
+                        // Ideally, fast particles (Red) went deep and return LATE.
+                        // Slow particles (White) went shallow and return EARLY.
+                        // They should meet HERE.
+                        p.state = 'collected'; // Absorbed by grid or passed
+                    }
+                }
+                
+                // Recycle
+                if (p.x < 0 || p.state === 'collected') {
+                     particlesRef.current[i] = { 
+                      x: 20, 
+                      y: cy + (Math.random() - 0.5) * 15,
+                      vx: v_pixel_base,
+                      base_vx: v_pixel_base,
+                      state: 'forward', 
+                      modulated: false,
+                      type: 'neutral'
+                    };
+                }
+              });
+          }
+
+          // --- 4. Drawing ---
+          
+          // Drift Tube
+          drawMetal(0, cy - 50, repellerX, 15, '#334155');
+          drawMetal(0, cy + 35, repellerX, 15, '#334155');
+          
+          // CAVITY (Resonator)
+          // Color depends on Oscillation Strength (Tuning)
+          // If perfectly tuned -> Bright Pink/Red. If detuned -> Gray/Dim.
+          let cavityColor;
+          let glowSize = 0;
+          
+          if (oscillation_strength > 0.5) {
+              cavityColor = '#f43f5e'; // Bright Red
+              glowSize = 20 * oscillation_strength;
+          } else if (oscillation_strength > 0.1) {
+              cavityColor = '#fbbf24'; // Yellow (Weak)
+              glowSize = 5;
+          } else {
+              cavityColor = '#475569'; // Off (Gray)
+          }
+
+          if (glowSize > 0) {
+              ctx.shadowBlur = 10 + glowSize;
+              ctx.shadowColor = cavityColor;
+          }
+          drawCavity(cavX, cy, 50, 80, 'RESONATOR', cavityColor);
+          ctx.shadowBlur = 0;
+
+          // REPELLER ELECTRODE (Negative Plate)
+          ctx.fillStyle = '#ef4444'; // Red usually indicates negative/danger in diagrams or active
+          ctx.beginPath();
+          // Draw a curved cup shape
+          ctx.arc(repellerX, cy, 60, 1.3 * Math.PI, 2.7 * Math.PI, true); 
+          ctx.fill();
+          
+          // Repeller Label & Voltage
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.font = '12px monospace';
+          ctx.fillText('REPELLER (-Vr)', repellerX - 10, cy - 70);
+          ctx.font = '10px monospace';
+          ctx.fillStyle = '#f87171';
+          ctx.fillText(`-${Vr} V`, repellerX - 10, cy - 55);
+
+          // STATUS HUD (The most important part for understanding)
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'left';
+          ctx.font = '14px monospace';
+          
+          let modeText = `N: ${N_cycles.toFixed(2)} cycles`;
+          let statusText = "";
+          let statusColor = "#fff";
+
+          if (oscillation_strength > 0.8) {
+              statusText = `OSCILLATING (Mode ${ideal_N - 0.75})`;
+              statusColor = "#4ade80"; // Green
+          } else if (oscillation_strength > 0.2) {
+              statusText = "WEAK OSCILLATION";
+              statusColor = "#facc15"; // Yellow
+          } else {
+              statusText = "NO OSCILLATION (Check Vr/Vo)";
+              statusColor = "#f87171"; // Red
+          }
+          
+          ctx.fillText(modeText, 20, 30);
+          ctx.fillStyle = statusColor;
+          ctx.fillText(statusText, 20, 50);
+
+          // PARTICLES
+          particlesRef.current.forEach(p => {
+              if (p.x > 0) { // Don't draw recycled
+                  let color = '#60a5fa'; // Blue (Forward)
+                  if (p.state === 'drift' || p.state === 'returning') {
+                      if (p.type === 'fast') color = '#f87171'; // Red (High Energy)
+                      else if (p.type === 'slow') color = '#ffffff'; // White (Low Energy)
+                      else color = '#fbbf24'; // Amber
+                  }
+                  drawElectron(p.x, p.y, 3, color);
+              }
+          });
+      }
         // === TWT ===
         else if (deviceId === 'twt') {
             const helixStart = 80;
