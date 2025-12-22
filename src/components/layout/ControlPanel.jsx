@@ -15,11 +15,14 @@ export function ControlPanel({
   setShowFFT
 }) {
   return (
-    // Modified: h-auto for mobile, h-80 for medium screens and up
+    // MAIN MODIFICATIONS FOR RESPONSIVENESS:
+    // 1. Changed 'h-80' to 'h-auto max-h-[50vh] md:h-80' -> Adapts height on mobile, fixed on desktop.
+    // 2. Added 'flex-col md:flex-row' -> Stacks elements vertically on mobile, horizontally on desktop.
+    // 3. Added 'overflow-y-auto' -> Enables vertical scrolling for the whole panel on mobile.
     <div className="h-auto max-h-[50vh] md:h-80 bg-[#0f1115] border-t border-slate-800 flex flex-col md:flex-row z-20 shrink-0 overflow-y-auto md:overflow-visible custom-scrollbar">
       
       {/* Parameters Grid */}
-      {/* Modified: Single column on mobile, 2 or 3 columns on larger screens */}
+      {/* MODIFICATION: Changed to 'grid-cols-1' on mobile for easier touch interaction */}
       <div className="flex-1 p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-x-6 md:gap-y-4 overflow-y-auto custom-scrollbar">
         {device.params.map(p => (
           <div key={p.id} className="bg-gradient-to-br from-slate-900/50 to-slate-800/30 p-3 md:p-4 rounded-lg border border-slate-700/50 hover:border-blue-500/30 transition-all">
@@ -42,7 +45,7 @@ export function ControlPanel({
         ))}
       </div>
 
-      {/* Theory Panel */}
+      {/* Theory Panel - Appears below inputs on mobile, to the right on desktop */}
       <TheoryPanel 
         device={device}
         safeInputs={safeInputs}
