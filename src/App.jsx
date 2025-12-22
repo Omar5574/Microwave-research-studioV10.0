@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Data & Components imports
 import { devices } from './data/devices';
@@ -11,13 +11,14 @@ import { WaveformDisplay } from './components/simulation/WaveformDisplay';
 import { FFTDisplay } from './components/simulation/FFTDisplay';
 import { DeepExplanation } from './components/panels/DeepExplanation';
 import ExpertQuery from './components/features/ExpertQuery';
-import { Header } from './components/layout/Header'; 
+import { Header } from './components/layout/Header';
 
 export default function App() {
   // === TABS & UI STATE ===
   const [activeTab, setActiveTab] = useState("simulation"); 
   const [showQuickInfo, setShowQuickInfo] = useState(false);
-  // *** NEW: Mobile Side Menu Status ***
+  
+  // *** NEW: Mobile Sidebar State ***
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // ========== SIMULATION CORE STATES ==========
@@ -162,7 +163,7 @@ export default function App() {
       {/* BODY: Changed to flex-col for mobile, flex-row for desktop */}
       <div className="flex flex-1 relative overflow-hidden flex-col md:flex-row">
         
-        {/* SIDEBAR: Responsive logic added */}
+        {/* SIDEBAR: Responsive logic added (Drawer style on mobile) */}
         <div className={`
             absolute md:relative z-30 h-full transition-transform duration-300
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
