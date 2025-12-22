@@ -147,41 +147,126 @@ export const devices = [
        name: 'Multi-Cavity Klystron', 
        type: 'O-TYPE',
        params: [
-         { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 800, def: 15, step: 0.5 },
+         { id: 'Vo', label: 'Beam Voltage', unit: 'kV', min: 1, max: 800, def: 20, step: 0.5 },
          { id: 'Io', label: 'Beam Current', unit: 'mA', min: 10, max: 5000, def: 500, step: 50 },
-         { id: 'Vi', label: 'Input RF', unit: 'V', min: 0, max: 5000, def: 500, step: 50 },
+         { id: 'Vi', label: 'Input RF', unit: 'V', min: 0, max: 500, def: 10, step: 1 }, // Reduced def input because gain is high
          { id: 'f', label: 'Frequency', unit: 'GHz', min: 0.1, max: 50, def: 3, step: 0.1 },
-         { id: 'N', label: 'Number of Cavities', unit: '', min: 2, max: 12, def: 4, step: 1 },
+         { id: 'N', label: 'Number of Cavities', unit: '', min: 2, max: 8, def: 4, step: 1 },
+         { id: 'L', label: 'Dist. btw Cavities', unit: 'cm', min: 1, max: 20, def: 5, step: 0.1 }, // Added for phase calc
          { id: 'd', label: 'Gap Spacing', unit: 'mm', min: 0.1, max: 20, def: 3, step: 0.1 },
-         { id: 'G', label: 'Gain/Stage', unit: 'dB', min: 1, max: 30, def: 8, step: 0.5 }
+         { id: 'G', label: 'Gain/Stage', unit: 'dB', min: 5, max: 25, def: 15, step: 0.5 }
        ],
-       desc: 'Cascaded bunching for high gain amplification. Used in radar and broadcast.',
+       desc: 'Cascaded bunching for high gain amplification. Used in radar, particle accelerators, and UHF TV.',
        theory: {
-         plain: 'Total Gain: G_total = N × G_stage, Power Out: P_out = P_in × 10^(G/10), Efficiency: η = P_out/(V₀I₀)',
-         latex: 'G_{total} = N \\times G_{stage}, \\quad P_{out} = P_{in} \\times 10^{G/10}, \\quad \\eta = \\frac{P_{out}}{V_0 I_0}'
+         plain: 'Total Gain (dB) ≈ N × Gain/Stage. Saturation limits P_out < η_max × P_dc.',
+         latex: 'G_{tot} = \\sum G_{stage}, \\quad P_{out} \\approx P_{in} 10^{G_{tot}/10}, \\quad P_{out} \\leq \\eta_{max} V_0 I_0'
        },
        explanation: [
          {
              title: "Cascaded Bunching",
-             text: "To enhance gain (typically >50 dB) and bandwidth, multi-cavity klystrons are used. Intermediate cavities are unloaded; the beam induces voltage across them, producing a second stage of velocity modulation stronger than the first."
+             text: "To enhance gain (typically >50 dB) and bandwidth, multi-cavity klystrons are used. Intermediate cavities are unloaded; the beam induces voltage across them, producing a second stage of velocity modulation stronger than the first.",
+             eq: "V_{n+1} > V_n"
          },
          {
-             title: "Stagger Tuning",
-             text: "Stagger tuning is employed where intermediate cavities are slightly detuned from the carrier to flatten the gain response."
+             title: "Space-Charge Effects",
+             text: "In high-power tubes, the mutual repulsion of electrons (space-charge forces) resists the bunching process. This debunching force defines the plasma frequency and limits the optimum drift length.",
+             eq: "\\omega_p = \\sqrt{\\frac{e \\rho_0}{m \\epsilon_0}}"
+         },
+         {
+             title: "Saturation & Efficiency",
+             text: "As input power increases, output power grows linearly until bunching saturates. Maximum theoretical efficiency is around 40-60%, depending on the tuning (Stagger vs. Synchronous).",
          }
        ],
        equations: (p) => {
-           const totalGain = (p.N || 4) * (p.G || 8);
-           const pin_watts = Math.pow((p.Vi || 500), 2) / 50; // Approx
-           const pout = pin_watts * Math.pow(10, totalGain/10);
+           // Physics Constants
+           const Vo = (p.Vo || 20) * 1000;
+           const Io = (p.Io || 500) / 1000;
+           const v0 = 5.93e5 * Math.sqrt(Vo);
+           const f = (p.f || 3) * 1e9;
+           const omega = 2 * Math.PI * f;
+           const L = (p.L || 5) / 100;
+           const d = (p.d || 3) / 1000;
+           
+           // Transit Angles
+           const theta_g = (omega * d) / v0;
+           let beta = 1;
+           if (Math.abs(theta_g/2) > 0.001) beta = Math.sin(theta_g/2)/(theta_g/2);
+           const theta_0_stage = (omega * L) / v0;
+
+           // Gain & Power Calculations
+           const N = p.N || 4;
+           const G_stage = p.G || 15;
+           const G_total_db = (N - 1) * G_stage; // Gain occurs between cavities
+           
+           const Pin = Math.pow(p.Vi || 10, 2) / 50; // Assuming 50 ohm input
+           const P_dc = Vo * Io;
+           
+           // Calculate Raw Output Power based on Gain
+           let Pout_linear = Pin * Math.pow(10, G_total_db/10);
+           
+           // Apply Saturation (Real Physics): Max Efficiency ~ 60%
+           const Max_Efficiency = 0.60;
+           const Pout_saturated = Math.min(Pout_linear, P_dc * Max_Efficiency);
+           
+           // Back-calculate actual compressed gain
+           const G_actual_db = 10 * Math.log10(Pout_saturated / Pin);
+           
+           // Calculate RF Output Voltage (across output gap, assuming R_sh)
+           // P = V^2 / (2 R_sh), assume R_sh approx 30kOhm for high power
+           const R_sh = 30000; 
+           const V_out_rf = Math.sqrt(2 * Pout_saturated * R_sh);
+
            return {
-             'Total Gain': { value: totalGain.toFixed(1), unit: 'dB', latex: 'G_{tot}' },
-             'Power Gain': { value: Math.pow(10, totalGain/10).toExponential(2), unit: 'x', latex: 'A_p' },
-             'Est. Efficiency': { value: (Math.min(0.6, pout / ((p.Vo*1000)*(p.Io/1000)))*100).toFixed(1), unit: '%', latex: '\\eta' }
+             'Beam Velocity': { value: v0.toExponential(2), unit: 'm/s', latex: 'v_0' },
+             'Total Gain (Linear)': { value: G_total_db.toFixed(1), unit: 'dB', latex: 'G_{lin}' },
+             'Actual Gain (Sat)': { value: G_actual_db.toFixed(1), unit: 'dB', latex: 'G_{sat}' },
+             'DC Input Power': { value: (P_dc/1000).toFixed(1), unit: 'kW', latex: 'P_{dc}' },
+             'RF Output Power': { value: (Pout_saturated/1000).toFixed(2), unit: 'kW', latex: 'P_{out}' },
+             'Efficiency': { value: ((Pout_saturated/P_dc)*100).toFixed(1), unit: '%', latex: '\\eta' },
+             'Output RF Voltage': { value: (V_out_rf/1000).toFixed(1), unit: 'kV', latex: 'V_{out}' }
            };
        },
        calculate: (params, t) => { 
-           return { current: 100, voltage: params.Vo * 1000, power: 1000 }; 
+           const Vo = params.Vo * 1000;
+           const Io = params.Io / 1000;
+           const f = params.f * 1e9;
+           const w = 2 * Math.PI * f;
+           const v0 = 5.93e5 * Math.sqrt(Vo);
+           
+           // Phase shift accumulation across N cavities
+           const L = (params.L || 5) / 100;
+           const N = params.N || 4;
+           const theta_total = (N - 1) * ((w * L) / v0);
+
+           // Gain simulation
+           const G_stage_linear = Math.pow(10, (params.G || 15)/20); // Voltage gain per stage
+           const Total_V_Gain = Math.pow(G_stage_linear, N-1);
+           
+           // Input
+           const Vin = params.Vi * Math.sin(w*t);
+           
+           // Output (Simulated saturation with tanh)
+           // We model the current bunching becoming sharp pulses
+           const drive_level = (params.Vi * Total_V_Gain) / Vo; // Normalized drive
+           const saturation_factor = Math.tanh(drive_level); 
+           
+           // Output Voltage (clamped by DC voltage rail approx)
+           const Vout_amp = Math.min(params.Vi * Total_V_Gain, Vo * 1.2); 
+           
+           return { 
+               // Input RF
+               voltage: Vin, 
+               
+               // Output RF (High Amplitude, Phase Shifted)
+               output_voltage: Vout_amp * Math.sin(w*t - theta_total),
+               
+               // Bunched Current at Output: Becomes pulse-like as N increases
+               // approximated by raising sin to a power or summing harmonics
+               current: (Io * 1000) * (1 + 1.5 * saturation_factor * Math.cos(w*t - theta_total)),
+               
+               // Power Transfer (Instantaneous)
+               power: (Io * saturation_factor) * Vout_amp * Math.sin(w*t - theta_total) * 0.5
+           }; 
        }
      },
      { 
