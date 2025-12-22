@@ -7,12 +7,12 @@ export function Header({
   timeScale, setTimeScale,
   running, setRunning,
   onChatOpen,
-  onMenuToggle // بروب جديد لزر القائمة
+  onMenuToggle
 }) {
   return (
     <header className="h-16 border-b border-slate-800 bg-gradient-to-r from-[#0a0a0f] to-[#0f1115] flex items-center justify-between px-4 md:px-6 z-20 shadow-lg shrink-0">
       <div className="flex items-center gap-3">
-        {/* زر القائمة للموبايل فقط */}
+        {/* A button for Mobile*/}
         <button 
           onClick={onMenuToggle}
           className="md:hidden text-slate-400 hover:text-white p-1"
