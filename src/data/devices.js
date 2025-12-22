@@ -269,49 +269,140 @@ export const devices = [
            }; 
        }
      },
-     { 
-         id: 'reflex', 
-         name: 'Reflex Klystron', 
-         type: 'O-TYPE',
-         params: [
-           { id: 'Vo', label: 'Beam Voltage', unit: 'V', min: 200, max: 1000, def: 600, step: 10 },
-           { id: 'Vr', label: 'Repeller Voltage', unit: 'V', min: 0, max: 800, def: 350, step: 10 },
-           { id: 'L', label: 'Repeller Spacing', unit: 'mm', min: 1, max: 10, def: 3, step: 0.1 },
-           { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 40, def: 9, step: 0.1 }
-         ],
-         desc: 'Single-cavity oscillator using a repeller electrode to fold the drift space.',
-         theory: {
-           plain: 'Transit Time: T = (n + 3/4)/f, Mode Number: n = 1,2,3..., Repeller Voltage: Vᵣ = V₀(1 - 2L²f²m/eV₀)',
-           latex: 'T = \\frac{n + 3/4}{f}, \\quad V_r = V_0\\left(1 - \\frac{2L^2 f^2 m}{eV_0}\\right)'
-         },
-         explanation: [
-             {
-                 title: "Principle of Operation",
-                 text: "Utilizes a repeller electrode biased at a negative potential to reverse the electron beam. The 'drift space' is folded back on itself."
-             },
-             {
-                 title: "Transit Time Condition",
-                 text: "For oscillation, the round-trip transit time T' must correspond to specific portions of the RF cycle (Mode Numbers n):",
-                 eq: "T' = \\left( n + \\frac{3}{4} \\right) T"
-             }
-         ],
-         equations: (p) => {
-             const n = Math.round(2 * (p.L || 3) * 1e-3 * (p.f || 9) * 1e9 * Math.sqrt(9.11e-31 / (2 * 1.6e-19 * (p.Vo || 600))) - 0.75);
-             return {
-               'Mode Number': { value: n.toString(), unit: '', latex: 'n' },
-               'Transit Time': { value: (2 * (p.L || 3) * 1e-3 / Math.sqrt(2 * 1.6e-19 * (p.Vo || 600) / 9.11e-31) * 1e9).toFixed(3), unit: 'ns', latex: 'T' },
-               'Repeller Field': { value: ((p.Vr || 350) / ((p.L || 3) * 1e-3)).toFixed(0), unit: 'V/m', latex: 'E_r' }
-             };
-         },
-         calculate: (params, t) => {
-             const w = 2 * Math.PI * params.f * 1e9;
-             return {
-                 current: 0.05 * Math.sin(w*t),
-                 voltage: params.Vo,
-                 power: 0.1
-             };
-         }
+    { 
+       id: 'reflex', 
+       name: 'Reflex Klystron', 
+       type: 'O-TYPE',
+       params: [
+         { id: 'Vo', label: 'Beam Voltage', unit: 'V', min: 200, max: 1000, def: 300, step: 10 },
+         { id: 'Io', label: 'Beam Current', unit: 'mA', min: 10, max: 100, def: 20, step: 1 }, // Added Io for Power Calc
+         { id: 'Vr', label: 'Repeller Voltage', unit: 'V', min: 0, max: 800, def: 150, step: 5 }, // Vr affects transit time
+         { id: 'L', label: 'Repeller Spacing', unit: 'mm', min: 1, max: 10, def: 2, step: 0.1 },
+         { id: 'f', label: 'Frequency', unit: 'GHz', min: 1, max: 20, def: 9, step: 0.1 }
+       ],
+       desc: 'Single-cavity oscillator. The beam is reflected back through the cavity by a negative electrode.',
+       theory: {
+         plain: 'Condition for Oscillation: Transit time must be (n + 3/4) cycles. Max Efficiency ~22.7%.',
+         latex: 'T_0 = \\frac{n + 3/4}{f}, \\quad \\theta_0 = 2\\pi(n + 3/4), \\quad \\eta_{max} = \\frac{2.408 J_1(2.408)}{2\\pi n - \\pi/2}'
        },
+       explanation: [
+           {
+               title: "Velocity Modulation & Reflection",
+               text: "Electrons are accelerated by V0, pass through the cavity gap (velocity modulated), and enter the repeller space. The negative Repeller Voltage (Vr) slows them down, stops them, and accelerates them back towards the cavity.",
+               eq: "E_r = \\frac{V_r + V_0}{L}"
+           },
+           {
+               title: "The Bunching Mechanism",
+               text: "Faster electrons penetrate deeper into the repeller space and take LONGER to return. Slower electrons penetrate less and return SOONER. This allows slower electrons to catch up with faster ones (unlike the Two-Cavity Klystron), forming bunches.",
+           },
+           {
+               title: "Mode Condition (n)",
+               text: "For oscillation, the bunch must arrive when the cavity field is retarding (taking energy). This happens when the round-trip transit time corresponds to (n + 3/4) RF cycles (e.g., 1.75, 2.75).",
+               eq: "N = n + \\frac{3}{4}"
+           }
+       ],
+       equations: (p) => {
+           // Physics Constants
+           const e = 1.6e-19;
+           const m = 9.11e-31;
+           const Vo = p.Vo || 300;
+           const Vr = p.Vr || 150;
+           const Io = (p.Io || 20) / 1000;
+           const L = (p.L || 2) / 1000; // meters
+           const f = (p.f || 9) * 1e9;
+           
+           // 1. DC Velocity
+           const v0 = Math.sqrt(2 * e * Vo / m);
+
+           // 2. Round Trip Transit Time (T') in Repeller Space (assuming uniform field)
+           // Force F = e(Vo + Vr)/L (approx if cavity is at Vo and Repeller at -Vr relative to cathode)
+           // Actually usually: Cathode=0, Cavity=Vo, Repeller= -Vr (relative to cathode? No, usually relative to cavity).
+           // Let's assume Vr is the magnitude of negative voltage relative to the Cavity potential.
+           // Retarding Field E = (Vr + Vo) / L ? No, usually Repeller is at -(Vr_supply) relative to cathode.
+           // Standard text formula: T' = 4 L v0 / [ (e/m) (Vo + Vr) ] is common approx if Vr is relative to cathode.
+           // Let's use: T' = 4 * L * f / v_drift? No.
+           // T = 2 * v0 / acceleration = 2 * v0 / [ (e/m) * (Vo + Vr) / L ] = 2 L v0 m / e(Vo+Vr)
+           const T_round_trip = (4 * L * v0) / ((e/m)*(Vo + Vr)); // Simplified Physics Model
+           
+           // 3. Number of Cycles (N)
+           const N_cycles = T_round_trip * f;
+           
+           // 4. Identify Mode (n)
+           // Ideal is k + 0.75 (e.g., 1.75, 2.75). Let's find the closest "k".
+           const mode_candidate = Math.round(N_cycles - 0.75);
+           const n = Math.max(1, mode_candidate); // Mode number usually 1, 2, 3...
+           
+           // 5. Calculate "Detuning" factor for Power
+           const ideal_N = n + 0.75;
+           const detuning = Math.abs(N_cycles - ideal_N);
+           
+           // Power drops sharply if we are not close to n + 3/4
+           // Let's model a Q-curve response
+           let output_factor = 0;
+           if (detuning < 0.2) {
+               output_factor = Math.exp(-Math.pow(detuning/0.05, 2)); // Gaussian resonance peak
+           }
+           
+           // 6. Max Power & Efficiency (from Lec 5 formula)
+           // Efficiency = (2 * X * J1(X)) / (2*pi*n - pi/2)
+           // Max X*J1(X) is ~1.25
+           const theta_0 = 2 * Math.PI * N_cycles; // Transit Angle
+           const max_theoretical_eff = (1.25) / (theta_0 - Math.PI/2); // Approx formula from PDF
+           
+           const P_dc = Vo * Io;
+           const P_out = P_dc * max_theoretical_eff * output_factor;
+           const Eff = (P_out / P_dc) * 100;
+
+           return {
+             'Mode (n)': { value: `${n} (${N_cycles.toFixed(2)})`, unit: 'cycles', latex: 'N' },
+             'Transit Time': { value: (T_round_trip*1e9).toFixed(3), unit: 'ns', latex: 'T^{\\prime}' },
+             'Round Trip Cycles': { value: N_cycles.toFixed(2), unit: '', latex: 'N_{cyc}' },
+             'Output Power': { value: (P_out*1000).toFixed(1), unit: 'mW', latex: 'P_{out}' }, // Usually mW for Reflex
+             'Efficiency': { value: Eff.toFixed(2), unit: '%', latex: '\\eta' },
+             'Condition': { value: detuning < 0.1 ? "Oscillating" : "Damped", unit: '', latex: '' }
+           };
+       },
+       calculate: (params, t) => {
+           const w = 2 * Math.PI * params.f * 1e9;
+           const Vo = params.Vo;
+           const Vr = params.Vr;
+           const L = (params.L || 2) / 1000;
+           
+           // Recalculate Oscillation Condition inside animation
+           const e = 1.6e-19;
+           const m = 9.11e-31;
+           const v0 = Math.sqrt(2 * e * Vo / m);
+           const T_rt = (4 * L * v0) / ((e/m)*(Vo + Vr));
+           const N = T_rt * params.f * 1e9;
+           
+           const ideal_N = Math.round(N - 0.75) + 0.75;
+           const detuning = Math.abs(N - ideal_N);
+           
+           // Amplitude depends on tuning
+           let amplitude = 0;
+           if (detuning < 0.15) {
+               amplitude = Math.exp(-Math.pow(detuning/0.05, 2)) * Vo * 0.5; // RF voltage is fraction of Beam V
+           }
+
+           // Current: The bunch arrives with phase delay theta
+           const theta = 2 * Math.PI * N;
+
+           return {
+               // RF Voltage across the single cavity
+               voltage: amplitude * Math.sin(w*t),
+               
+               // Beam Current: modulated and phase shifted
+               // Shows bunches returning
+               current: (params.Io || 20) * (1 + (amplitude > 0 ? 1 : 0) * Math.sin(w*t - theta)),
+               
+               // Instantaneous Power
+               power: (amplitude * (params.Io/1000) * 0.5) * Math.sin(w*t) * Math.sin(w*t - theta),
+               
+               // Helper for UI: Show Mode center
+               mode_center: ideal_N
+           };
+       }
+     },
        {
          id: 'twt', 
          name: 'Traveling Wave Tube', 
