@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Data & Components imports
 import { devices } from './data/devices';
@@ -18,8 +18,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("simulation"); 
   const [showQuickInfo, setShowQuickInfo] = useState(false);
   
-  // *** NEW: Mobile Sidebar State ***
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // *** MODIFIED: Sidebar State (Default true on desktop, false on mobile) ***
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
 
   // ========== SIMULATION CORE STATES ==========
   const [activeId, setActiveId] = useState('klystron2');
@@ -163,14 +163,19 @@ export default function App() {
       {/* BODY: Changed to flex-col for mobile, flex-row for desktop */}
       <div className="flex flex-1 relative overflow-hidden flex-col md:flex-row">
         
-        {/* SIDEBAR: Responsive logic added (Drawer behavior) */}
+        {/* SIDEBAR WRAPPER: Modified to be collapsible on desktop */}
         <div className={`
-            absolute md:relative z-30 h-full transition-transform duration-300
-            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+            z-30 h-full bg-[#0a0a0a] border-r border-slate-800 transition-all duration-300 ease-in-out flex-shrink-0
+            absolute md:relative overflow-hidden
+            ${isSidebarOpen 
+              ? 'translate-x-0 w-64 md:w-72 opacity-100' 
+              : '-translate-x-full w-64 opacity-0 md:translate-x-0 md:w-0 md:opacity-0 md:border-none'
+            }
         `}>
           <Sidebar devices={devices} activeId={activeId} setActiveId={(id) => {
             setActiveId(id);
-            setIsSidebarOpen(false); // Close menu on selection
+            // On mobile close menu on selection, on desktop keep open
+            if (window.innerWidth < 768) setIsSidebarOpen(false); 
           }} />
         </div>
 
@@ -182,7 +187,7 @@ export default function App() {
           />
         )}
 
-        <main className="flex-1 flex flex-col relative bg-black overflow-hidden w-full">
+        <main className="flex-1 flex flex-col relative bg-black overflow-hidden w-full min-w-0">
 
           <div className="flex-1 relative overflow-hidden bg-[#050505]">
             
@@ -209,8 +214,7 @@ export default function App() {
                   particleDensity={particleDensity}
                 />
                 
-                {/* 2. Overlays (Waveform & FFT) - Hidden on small mobile screens */}
-                {/* MODIFICATION: Reduced scale from md:scale-125 to md:scale-90 to make it smaller on PC */}
+                {/* 2. Overlays (Waveform & FFT) */}
                 <div className="hidden md:flex absolute bottom-6 right-6 flex-row gap-4 items-end pointer-events-none z-10 scale-75 md:scale-90 origin-bottom-right">
                   <div className="pointer-events-auto">
                     {showWaveform && <WaveformDisplay deviceId={activeId} inputs={safeInputs} running={running} timeScale={timeScale} />}
@@ -240,12 +244,6 @@ export default function App() {
                 setShowWaveform={setShowWaveform}
                 showFFT={showFFT}
                 setShowFFT={setShowFFT}
-                running={running}
-                setRunning={setRunning}
-                fidelity={fidelity}
-                setFidelity={setFidelity}
-                timeScale={timeScale}
-                setTimeScale={setTimeScale}
             />
           )}
 
