@@ -271,7 +271,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           ctx.fillStyle = '#94a3b8'; ctx.fillText('COLLECTOR', collectorX + 5, cy + 5);
 
           ctx.fillStyle = '#fff'; ctx.font = '14px monospace';
-          ctx.fillText(`Bunching Param (X): ${X_real.toFixed(3)}`, 20, 30);
+          ctx.fillText(`Bunching Param (X): ${X_real.toFixed(3)}`, 80, 30);
           
           let statusText = ""; let statusColor = "#94a3b8";
           if (X_real < 1.0) { statusText = "UNDER-BUNCHED"; statusColor = "#facc15"; }
@@ -279,7 +279,7 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           else if (X_real > 2.0) { statusText = "OVER-BUNCHED"; statusColor = "#f87171"; }
           else { statusText = "GOOD BUNCHING"; statusColor = "#60a5fa"; }
           
-          ctx.fillStyle = statusColor; ctx.fillText(statusText, 20, 50);
+          ctx.fillStyle = statusColor; ctx.fillText(statusText, 80, 50);
 
           // Electrons
           particlesRef.current.forEach(p => {
@@ -470,10 +470,10 @@ export function PhysicsCanvas({ deviceId, running, inputs, fidelity, timeScale, 
           const total_gain_db = ((N-1) * gainDB_stage).toFixed(1);
           ctx.fillStyle = '#fff';
           ctx.font = '14px monospace';
-          ctx.fillText(`Gain: ${total_gain_db} dB`, 20, 30);
+          ctx.fillText(`Gain: ${total_gain_db} dB`, 80, 30);
           ctx.font = '12px monospace';
           ctx.fillStyle = '#94a3b8';
-          ctx.fillText(`(Visuals Enhanced for Visibility)`, 20, 45);
+          ctx.fillText(`(Visuals Enhanced for Visibility)`, 80, 45);
 
           particlesRef.current.forEach(p => {
              let color = '#60a5fa'; 
