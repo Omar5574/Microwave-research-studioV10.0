@@ -14,10 +14,11 @@ export function Header({
       
       {/* Left Section: Logo & Title */}
       <div className="flex items-center gap-3">
-        {/* Mobile Menu Button (Hamburger) - Only visible on mobile */}
+        {/* Menu Toggle Button - Visible on ALL screens now */}
         <button 
           onClick={onMenuToggle}
-          className="md:hidden text-slate-400 hover:text-white p-1"
+          className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+          title="Toggle Sidebar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="12" x2="21" y2="12"></line>
